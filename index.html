@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>釣果ボード</title>
+<meta name="theme-color" content="#0F3B52">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="釣果ボード">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="images/icon-180.png">
+<link rel="apple-touch-icon" href="images/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F5F4;--card:#FFFFFF;--ink:#13232B;--sub:#5B6B72;--line:#D9E1E0;
+  --sea:#0F3B52;--tide:#23807F;--tai:#C93C33;--tideBg:#E0EFEE;--taiBg:#FBE6E3;--seaBg:#E3ECF1;--me:#23807F;--meInk:#FFFFFF;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0C1A21;--card:#13252E;--ink:#E6EEF0;--sub:#9AACB2;--line:#25414C;
+  --sea:#8EC3DC;--tide:#55C1BC;--tai:#F07A6F;--tideBg:#123A3C;--taiBg:#3E1E1C;--seaBg:#16303D;--me:#1D5F5C;--meInk:#E9F6F5;}}
+:root[data-theme="dark"]{
+  --bg:#0C1A21;--card:#13252E;--ink:#E6EEF0;--sub:#9AACB2;--line:#25414C;
+  --sea:#8EC3DC;--tide:#55C1BC;--tai:#F07A6F;--tideBg:#123A3C;--taiBg:#3E1E1C;--seaBg:#16303D;--me:#1D5F5C;--meInk:#E9F6F5;}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--tide);outline-offset:2px}
+.app{max-width:480px;margin:0 auto;padding:0 16px calc(88px + env(safe-area-inset-bottom,0px))}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:14px 0 12px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.brand{font-weight:700;font-size:20px;letter-spacing:.02em;color:var(--sea)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{width:42px;height:42px;flex:none}
+.brand small{display:block;font-size:12px;font-weight:500;color:var(--sub);letter-spacing:0}
+.avatar{width:38px;height:38px;border-radius:50%;border:none;background:var(--seaBg);color:var(--sea);font-weight:700}
+h2{font-size:17px;margin:0 0 10px;font-weight:700}
+.sec{margin-bottom:26px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.muted{color:var(--sub);font-size:13px}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.nav-in{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr)}
+.nav button{position:relative;background:none;border:none;padding:8px 0 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--sub)}
+.nav button.on{color:var(--sea);font-weight:700}
+.nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav .post-btn span.circle{width:40px;height:40px;border-radius:50%;background:var(--tai);color:#fff;display:flex;align-items:center;justify-content:center;margin-top:-14px;border:3px solid var(--card)}
+.leaders{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.leader{padding:12px 10px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
+.leader .k{font-size:12px;color:var(--sub)}
+.leader .v{font-size:22px;font-weight:700;line-height:1.2;margin-top:4px}
+.leader .v small{font-size:12px;font-weight:500}
+.leader .n{font-size:12px;color:var(--sub)}
+.leader.first{background:var(--taiBg);border-color:transparent}
+.leader.first .v{color:var(--tai)}
+.post{overflow:hidden;margin-bottom:12px}
+.photo{height:170px;display:flex;align-items:center;justify-content:center;background:var(--seaBg);color:var(--sea)}
+.photo img{width:100%;height:100%;object-fit:cover}
+.photo svg{width:110px;opacity:.55}
+.photo.red{background:var(--taiBg);color:var(--tai)}
+.photo.teal{background:var(--tideBg);color:var(--tide)}
+.post-body{padding:12px 14px 14px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.who{font-weight:700;font-size:14px}
+.catch{font-size:19px;font-weight:700;margin:2px 0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:12px;padding:2px 9px;border-radius:999px;background:var(--seaBg);color:var(--sea)}
+.tag.red{background:var(--taiBg);color:var(--tai)}
+.tag.teal{background:var(--tideBg);color:var(--tide)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.field textarea{min-height:70px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:11px 14px;font-weight:500}
+.btn.primary{background:var(--sea);border-color:var(--sea);color:var(--bg);width:100%;font-weight:700;padding:13px}
+.btn.ai{background:var(--tideBg);border-color:transparent;color:var(--tide);width:100%;font-weight:700}
+.err{color:var(--tai);font-size:13px;margin-top:4px}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:170px;border:1.5px dashed var(--line);border-radius:14px;background:var(--card);color:var(--sub);cursor:pointer;overflow:hidden;position:relative}
+.drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.seg{display:flex;background:var(--seaBg);border-radius:10px;padding:3px;margin-bottom:14px}
+.seg button{flex:1;border:none;background:none;border-radius:8px;padding:8px 4px;font-size:13px;color:var(--sub)}
+.seg button.on{background:var(--card);color:var(--sea);font-weight:700}
+.rank-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.rank-row:last-child{border-bottom:none}
+.rk{width:30px;font-size:20px;font-weight:700;color:var(--sub);text-align:center}
+.rk.g1{color:var(--tai)}
+.rank-row .nm{flex:1;font-weight:500}
+.rank-row .val{font-size:18px;font-weight:700}
+.rank-row .val small{font-size:12px;font-weight:500;color:var(--sub)}
+.monthbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.monthbar b{font-size:18px}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--card)}
+.bars .b{display:grid;grid-template-columns:56px 1fr 40px;align-items:center;gap:8px;margin:8px 0;font-size:13px}
+.bars .track{height:14px;background:var(--seaBg);border-radius:7px;overflow:hidden}
+.bars .fill{height:100%;background:var(--tide);border-radius:7px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat{padding:10px;border-radius:12px;background:var(--card);border:1px solid var(--line);text-align:center}
+.stat b{display:block;font-size:20px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dow{text-align:center;font-size:12px;color:var(--sub);padding-bottom:4px}
+.cal .dow.sun{color:var(--tai)}
+.day{aspect-ratio:1/1.15;border:1px solid transparent;border-radius:10px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5px;font-size:13px;position:relative}
+.day.blank{background:none}
+.day.sel{border-color:var(--sea)}
+.day.today .d{background:var(--sea);color:var(--bg);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.day .t{font-size:10px;margin-top:2px;color:var(--sub)}
+.day .t.big{color:var(--tai);font-weight:700}
+.day .t.mid{color:var(--tide)}
+.day .dot{position:absolute;bottom:5px;width:6px;height:6px;border-radius:50%;background:var(--tai)}
+.tidebox{padding:14px}
+.tidetimes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.tidetimes div{background:var(--seaBg);border-radius:10px;padding:8px 10px;font-size:13px}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--sub);margin:10px 0 0;flex-wrap:wrap}
+.login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;max-width:380px;margin:0 auto;padding:24px}
+.login h1{font-size:30px;color:var(--sea);margin:0 0 2px;text-align:center}
+.login-logo{display:block;width:210px;height:210px;margin:0 auto 10px}
+.login .sub{text-align:center}
+.wave{display:block;width:100%;height:28px;color:var(--tide);margin:14px 0 24px}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--sea);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90%;text-align:center}
+.best td{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.best tr:last-child td{border-bottom:none}
+.empty{padding:24px;text-align:center;color:var(--sub)}
+.stats.four{grid-template-columns:repeat(4,1fr)}
+.leader.ika{display:flex;justify-content:space-between;align-items:center;margin-top:8px;background:var(--tideBg);border-color:transparent;padding:10px 14px}
+.leader.ika .v{color:var(--tide);margin-top:0}
+.catch small{font-size:13px;font-weight:500;color:var(--sub)}
+.catch.multi{font-size:17px;line-height:1.5}
+.drop .cam svg{width:44px;height:44px;stroke:var(--tide);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.drop b{color:var(--ink)}
+.photo-acts{position:absolute;right:10px;bottom:10px;display:flex;gap:6px;z-index:1}
+.field .chip,.chip{display:inline-block;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer}
+.lib-link{display:block;text-align:center;font-size:13px;color:var(--tide);padding:8px 0 0;cursor:pointer;text-decoration:underline}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px 12px 0;margin-bottom:10px;background:var(--bg)}
+.item-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+.link{background:none;border:none;color:var(--tai);font-size:13px;padding:4px}
+.stepper{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.stepper button{width:42px;flex:none;border:none;background:var(--seaBg);color:var(--sea);font-size:20px;font-weight:700}
+.field .stepper input{flex:1;border:none;border-radius:0;text-align:center;min-width:0;padding:11px 4px}
+.stepper.big button{width:64px;font-size:26px}
+.field .stepper.big input{font-size:24px;font-weight:700;padding:10px 4px}
+.btn.add{width:100%;border-style:dashed;color:var(--tide);margin-bottom:16px;font-size:14px}
+.note{background:var(--tideBg);color:var(--tide);border-radius:10px;padding:10px 12px;margin:10px 0 0;font-size:13px}
+.fill.ika{background:var(--sea)}
+.badge{position:absolute;top:3px;left:50%;margin-left:4px;min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:var(--tai);color:#fff;font-size:10px;font-weight:700;line-height:17px;text-align:center}
+.chat-sec{padding-bottom:70px}
+.chat{display:flex;flex-direction:column;gap:12px}
+.sys{align-self:center;background:var(--seaBg);color:var(--sea);font-size:12px;padding:3px 12px;border-radius:999px;border:none}
+.catch-note{background:var(--taiBg);color:var(--tai);max-width:92%;text-align:center}
+.msg{display:flex;gap:8px;align-items:flex-start}
+.msg.me{justify-content:flex-end}
+.av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--seaBg);color:var(--sea);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+.col{max-width:78%;min-width:0}
+.nm{font-size:11px;color:var(--sub);margin:0 0 2px 2px}
+.line{display:flex;align-items:flex-end;gap:6px}
+.msg.me .line{flex-direction:row-reverse}
+.bubble{background:var(--card);border:1px solid var(--line);padding:8px 12px;border-radius:18px;border-top-left-radius:4px;white-space:pre-wrap;word-break:break-word;line-height:1.5}
+.msg.me .bubble{background:var(--me);color:var(--meInk);border-color:transparent;border-radius:18px;border-top-right-radius:4px}
+.time{flex:none;font-size:10px;color:var(--sub);white-space:nowrap}
+.chat-img{display:block;max-width:200px;max-height:260px;border-radius:14px;border:1px solid var(--line)}
+.chatbar{position:fixed;left:0;right:0;bottom:60px;z-index:9;background:var(--card);border-top:1px solid var(--line)}
+.chatbar-in{max-width:480px;margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:8px 12px}
+.cam-btn{flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.cam-btn svg{width:22px;height:22px;stroke:var(--tide);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#chat-text{flex:1;min-width:0;resize:none;border:1px solid var(--line);border-radius:20px;padding:7px 14px;background:var(--bg);max-height:120px;line-height:1.4;font-size:16px}
+.send{flex:none;border:none;background:var(--me);color:var(--meInk);border-radius:20px;padding:8px 14px;font-weight:700}
+@media (prefers-reduced-motion:no-preference){.fill{transition:width .4s ease}}
+.post-foot{display:flex;justify-content:flex-end;margin-top:6px}
+.btn[disabled]{opacity:.6}
+input,select,textarea{font-size:16px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="toast" class="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+/* =========================================================
+   釣果ボード（本番用）
+   データは Supabase に保存します。接続先は config.js で設定します。
+   ========================================================= */
+const IKA="白イカ";
+const EMAIL_DOMAIN="@tsuri.local";
+const SPECIES=["真鯛","チダイ","アジ","サバ","イワシ","キス","メバル","カサゴ","ハマチ","タチウオ","アオリイカ","タコ"];
+let MEMBERS={};   // メンバーのID → 表示名
+let sb=null;      // Supabase との接続
+let state={user:null,me:null,profiles:[],view:"home",posts:[],urls:{},chat:[],chatRead:null,chatDraft:"",
+  rankYear:null,rankCat:"size",rev:null,cal:null,calSel:null,draft:null,booting:false,busy:false};
+const today=new Date();
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3200)}
+function errMsg(e){
+  const m=String(e?.message||e||"");
+  if(/Invalid login credentials/i.test(m))return "IDかパスワードが違います";
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))return "通信できませんでした。電波の良い場所でもう一度お試しください";
+  if(/JWT|session/i.test(m))return "ログインの期限が切れました。もう一度ログインしてください";
+  return m||"エラーが発生しました";
+}
+
+/* 潮回り（月齢からの計算） */
+const SYN=29.530588853,NEW=Date.UTC(2000,0,6,18,14);
+function moonAge(d){const t=Date.UTC(d.getFullYear(),d.getMonth(),d.getDate(),12);let a=((t-NEW)/86400000)%SYN;return a<0?a+SYN:a}
+const TIDE=["","大潮","大潮","大潮","中潮","中潮","中潮","小潮","小潮","小潮","長潮","若潮","中潮","中潮","大潮","大潮","大潮","大潮","大潮","中潮","中潮","中潮","小潮","小潮","小潮","長潮","若潮","中潮","中潮","中潮","大潮"];
+function tideName(d){return TIDE[Math.min(30,Math.floor(moonAge(d))+1)]}
+const dateOf=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+
+const ICON={
+ home:'<svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></svg>',
+ cal:'<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>',
+ plus:'<svg viewBox="0 0 24 24" style="stroke:#fff"><path d="M12 6v12M6 12h12"/></svg>',
+ rank:'<svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>',
+ rev:'<svg viewBox="0 0 24 24"><path d="M4 20h16M7 16v-5M12 16V7M17 16v-8"/></svg>',
+ chat:'<svg viewBox="0 0 24 24"><path d="M12 4c4.7 0 8.5 3 8.5 6.8S16.7 17.6 12 17.6c-.8 0-1.6-.1-2.3-.3L5 20l.9-4C4.4 14.7 3.5 12.9 3.5 10.8 3.5 7 7.3 4 12 4z"/></svg>'};
+const FISH='<svg viewBox="0 0 120 60" aria-hidden="true"><path d="M24 30C42 7 82 7 100 30 82 53 42 53 24 30Z" fill="currentColor"/><path d="M26 30 6 13l5 17-5 17Z" fill="currentColor"/><circle cx="86" cy="26" r="3.2" fill="var(--card)"/></svg>';
+const CAM='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3.5l2-3h5l2 3H20v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg>';
+const toneOf=s=>/鯛/.test(s)?"red":/イカ|アジ|サバ|ハマチ|タチウオ/.test(s)?"teal":"";
+
+/* 白イカは「数で勝負」の別部門。表記ゆれもまとめて白イカ扱い */
+const isIka=s=>/^(白イカ|白いか|しろいか|シロイカ)$/.test(String(s??"").trim());
+/* 1回の投稿には複数の魚種（items）が入るので、集計用に1行ずつに展開する */
+function rowsOf(ps){return ps.flatMap(p=>p.items.map(it=>({...it,date:p.date,user:p.user})))}
+const sum=rs=>rs.reduce((s,r)=>s+(Number(r.count)||0),0);
+const CATS={size:["最大サイズ","cm"],count:["釣果数","匹"],species:["魚種数","種"],ika:["白イカ","杯"]};
+const valOf=(r,cat)=>cat==="size"?r.size:cat==="count"?r.count:cat==="species"?r.sp.size:r.ika;
+const isAdmin=()=>state.me?.role==="admin";
+const canDelete=p=>p.user===state.user||p.postedBy===state.user||isAdmin();
+const nameOf=id=>MEMBERS[id]||"（退会したメンバー）";
+
+function postsOfYear(y){return state.posts.filter(p=>p.date.startsWith(y+"-"))}
+function rankList(y,cat){
+  const m={};Object.keys(MEMBERS).forEach(u=>m[u]={u,size:0,sizeSp:"",sizeDate:"",count:0,sp:new Set(),ika:0});
+  rowsOf(postsOfYear(y)).forEach(r=>{const x=m[r.user];if(!x)return;const n=Number(r.count)||0;
+    if(isIka(r.species)){x.ika+=n;return}
+    x.count+=n;x.sp.add(r.species);const s=Number(r.size)||0;
+    if(s>x.size||(s>0&&s===x.size&&r.date<x.sizeDate)){x.size=s;x.sizeSp=r.species;x.sizeDate=r.date}});
+  return Object.values(m).filter(r=>valOf(r,cat)>0).sort((a,b)=>valOf(b,cat)-valOf(a,cat)||(cat==="size"?a.sizeDate.localeCompare(b.sizeDate):0));
+}
+
+/* ---------- 画面 ---------- */
+function header(){
+  return `<header class="top"><div class="brand"><img src="images/logo-120.png" alt=""><div>釣果ボード<small>${today.getFullYear()}年シーズン</small></div></div>
+  <button class="avatar" data-go="me" aria-label="マイページ">${esc(nameOf(state.user)[0])}</button></header>`;
+}
+function unread(){const r=state.chatRead||"";return state.chat.filter(m=>m.kind!=="catch"&&m.user!==state.user&&m.at>r).length}
+function nav(){
+  const it=[["home","ホーム",ICON.home],["chat","チャット",ICON.chat],["post","投稿",ICON.plus],["cal","カレンダー",ICON.cal],["rank","ランキング",ICON.rank],["rev","振り返り",ICON.rev]];
+  const un=unread();
+  return `<nav class="nav"><div class="nav-in">${it.map(([k,l,i])=>k==="post"
+   ?`<button class="post-btn ${state.view===k?"on":""}" data-go="post"><span class="circle">${i}</span>${l}</button>`
+   :`<button class="${state.view===k?"on":""}" data-go="${k}">${i}${l}${k==="chat"&&un?`<span class="badge">${un>99?"99+":un}</span>`:""}</button>`).join("")}</div></nav>`;
+}
+function itemLine(it){
+  if(isIka(it.species))return `${IKA} ${esc(it.count)}杯`;
+  const n=Number(it.count)||0;
+  return n>1?`${esc(it.species)} ${n}匹${it.size?`<small>（最大${esc(it.size)}cm）</small>`:""}`:`${esc(it.species)}${it.size?` ${esc(it.size)}cm`:""}`;
+}
+function postCard(p){
+  const tone=toneOf(p.items[0]?.species||"");const multi=p.items.length>1;const img=p.photoPath&&state.urls[p.photoPath];
+  const tags=[`<span class="tag">${esc(tideName(dateOf(p.date)))}</span>`,
+    p.items.some(it=>isIka(it.species))?`<span class="tag teal">白イカ部門</span>`:"",
+    p.postedBy&&p.postedBy!==p.user?`<span class="tag">代理投稿：${esc(nameOf(p.postedBy))}さん</span>`:""].join("");
+  return `<article class="card post"><div class="photo ${tone}">${img?`<img src="${esc(img)}" alt="${esc(p.items.map(it=>it.species).join("・"))}の写真" loading="lazy">`:FISH}</div>
+  <div class="post-body"><div class="row"><span class="who">${esc(nameOf(p.user))}さん</span><span class="muted">${esc(p.date.replace(/-/g,"/"))}</span></div>
+  <div class="catch ${multi?"multi":""}">${p.items.map(itemLine).join("<br>")}</div>
+  ${multi?`<div class="muted">計${sum(p.items)}匹</div>`:""}
+  <div class="muted">${esc(p.spot||"")}</div><div class="tags">${tags}</div>${p.memo?`<p style="margin:8px 0 0;font-size:14px;white-space:pre-wrap">${esc(p.memo)}</p>`:""}
+  ${canDelete(p)?`<div class="post-foot"><button class="link" data-act="delPost" data-id="${esc(p.id)}">削除</button></div>`:""}</div></article>`;
+}
+function vHome(){
+  const y=today.getFullYear();
+  const lead=["size","count","species"].map((k,i)=>{const r=rankList(y,k)[0];const[l,u]=CATS[k];
+    return `<div class="leader ${i===0?"first":""}"><div class="k">${l}</div><div class="v">${r?valOf(r,k):"-"}<small>${r?u:""}</small></div><div class="n">${r?esc(nameOf(r.u))+"さん":"記録なし"}</div></div>`}).join("");
+  const ika=rankList(y,"ika")[0];
+  const ikaBox=`<div class="leader ika"><div><div class="k">白イカ部門（杯数で勝負）</div><div class="n">${ika?esc(nameOf(ika.u))+"さん":"記録なし"}</div></div><div class="v">${ika?ika.ika:"-"}<small>${ika?"杯":""}</small></div></div>`;
+  const list=state.posts.slice(0,30);
+  return `<section class="sec"><h2>${y}年の首位</h2><div class="leaders">${lead}</div>${ikaBox}</section>
+  <section class="sec"><h2>みんなの釣果</h2>${list.length?list.map(postCard).join(""):`<div class="card empty">最初の釣果を投稿しましょう</div>`}</section>`;
+}
+function newDraft(){return{photo:null,mode:"fish",user:state.user,date:ymd(new Date()),spot:"",items:[{species:"",size:"",count:1}],ikaCount:1,memo:""}}
+function stepper(id,val,big){
+  return `<div class="stepper ${big?"big":""}"><button type="button" data-act="dec" data-t="${id}" aria-label="1減らす">−</button><input id="${id}" type="number" inputmode="numeric" min="1" step="1" value="${esc(val)}"><button type="button" data-act="inc" data-t="${id}" aria-label="1増やす">＋</button></div>`;
+}
+function vPost(){
+  if(!state.draft)state.draft=newDraft();
+  const d=state.draft;const ika=d.mode==="ika";
+  const spots=[...new Set(state.posts.map(p=>p.spot).filter(Boolean))];
+  const species=[...new Set(SPECIES.concat(state.posts.flatMap(p=>p.items.map(i=>i.species))).filter(s=>!isIka(s)))];
+  const photo=d.photo
+   ?`<div class="drop"><img src="${d.photo}" alt="撮った写真"><div class="photo-acts"><label class="chip" for="ph-cam">撮り直す</label><label class="chip" for="ph-lib">アルバムから</label></div></div>`
+   :`<label class="drop" for="ph-cam"><span class="cam">${CAM}</span><b>タップしてカメラを起動</b><span class="muted">縮小して位置情報を削除してから保存します</span></label>
+     <label class="lib-link" for="ph-lib">撮った写真をアルバムから選ぶ</label>`;
+  const items=d.items.map((it,i)=>`<div class="item">${d.items.length>1?`<div class="item-hd"><b>${i+1}つ目</b><button type="button" class="link" data-act="delItem" data-i="${i}">削除</button></div>`:""}
+    <div class="field"><label for="f-sp-${i}">魚種</label><input id="f-sp-${i}" list="splist" value="${esc(it.species)}" placeholder="アジ"></div>
+    <div class="grid2"><div class="field"><label for="f-size-${i}">最大サイズ（cm）</label><input id="f-size-${i}" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(it.size)}" placeholder="任意"></div>
+    <div class="field"><label for="f-count-${i}">匹数</label>${stepper("f-count-"+i,it.count)}</div></div></div>`).join("");
+  return `<section class="sec"><h2>釣果を投稿</h2>
+  <div class="seg" role="tablist"><button class="${ika?"":"on"}" data-mode="fish">魚</button><button class="${ika?"on":""}" data-mode="ika">白イカ（数で勝負）</button></div>
+  ${photo}
+  <input id="ph-cam" type="file" accept="image/*" capture="environment" hidden><input id="ph-lib" type="file" accept="image/*" hidden>
+  ${ika?`<p class="note">白イカは大きさではなく<b>杯数</b>で競う別部門です。釣果数・魚種数のランキングには含まれません。</p>`:""}
+  <div class="grid2" style="margin-top:14px"><div class="field"><label for="f-user">釣った人</label><select id="f-user">${state.profiles.map(p=>`<option value="${p.id}" ${d.user===p.id?"selected":""}>${esc(p.display_name)}${p.id===state.user?"（自分）":""}</option>`).join("")}</select></div>
+  <div class="field"><label for="f-date">釣った日</label><input id="f-date" type="date" value="${esc(d.date)}"></div></div>
+  ${d.user!==state.user?`<p class="muted" style="margin:-6px 0 14px">${esc(nameOf(d.user))}さんの代わりに投稿します（${esc(nameOf(d.user))}さんの記録になります）</p>`:""}
+  <div class="field"><label for="f-spot">釣り場</label><input id="f-spot" list="spotlist" value="${esc(d.spot)}" placeholder="〇〇港"><datalist id="spotlist">${spots.map(s=>`<option value="${esc(s)}">`).join("")}</datalist></div>
+  ${ika?`<div class="field"><label for="f-ika">白イカの杯数</label>${stepper("f-ika",d.ikaCount,true)}</div>`
+   :`${items}<datalist id="splist">${species.map(s=>`<option value="${esc(s)}">`).join("")}</datalist>
+     <button type="button" class="btn add" data-act="addItem">＋ 魚種を追加（同じ写真に別の魚もいるとき）</button>`}
+  <div class="field"><label for="f-memo">メモ</label><textarea id="f-memo" placeholder="朝マズメの上げ潮で連発">${esc(d.memo)}</textarea></div>
+  <div id="formErr" class="err" style="margin-bottom:10px"></div>
+  <button class="btn primary" data-act="submit" ${state.busy?"disabled":""}>${state.busy?"投稿中…":"投稿する"}</button></section>`;
+}
+function vRank(){
+  const years=[...new Set(state.posts.map(p=>p.date.slice(0,4)).concat(String(today.getFullYear())))].sort().reverse();
+  const y=state.rankYear||String(today.getFullYear());const cat=state.rankCat;
+  const list=rankList(y,cat);const unit=CATS[cat][1];
+  return `<section class="sec"><div class="monthbar"><h2 style="margin:0">年間ランキング</h2>
+  <select id="rankYear" class="btn" aria-label="年">${years.map(v=>`<option ${v===y?"selected":""} value="${v}">${v}年</option>`).join("")}</select></div>
+  <div class="seg" role="tablist">${Object.entries(CATS).map(([k,[l]])=>`<button class="${cat===k?"on":""}" data-rcat="${k}">${l}</button>`).join("")}</div>
+  <div class="card">${list.length?list.map((r,i)=>`<div class="rank-row"><span class="rk ${i===0?"g1":""}">${i+1}</span><span class="nm">${esc(nameOf(r.u))}さん${cat==="size"?`<div class="muted">${esc(r.sizeSp)}</div>`:""}</span>
+  <span class="val">${valOf(r,cat)}<small>${unit}</small></span></div>`).join(""):`<div class="empty">この年の記録はまだありません</div>`}</div>
+  <p class="muted" style="margin-top:10px">${cat==="ika"?"白イカは大きさではなく、1年間に釣った杯数の合計で競う別部門です。":"1月1日〜12月31日で集計し、年が変わるとリセットされます。白イカは別部門のため含みません。"}過去の年も選んで見られます。</p></section>`;
+}
+function bars(list,unit,cls){
+  const max=Math.max(1,...list.map(x=>x[1]));
+  return `<div class="bars">${list.map(([u,c])=>`<div class="b"><span>${esc(nameOf(u))}</span><div class="track"><div class="fill ${cls}" style="width:${c/max*100}%"></div></div><span style="text-align:right">${c}${unit}</span></div>`).join("")}</div>`;
+}
+function byUser(rs){const m={};rs.forEach(x=>m[x.user]=(m[x.user]||0)+(Number(x.count)||0));return Object.entries(m).sort((a,b)=>b[1]-a[1])}
+function vRev(){
+  const r=state.rev;const key=r.y+"-"+pad(r.m+1);const ps=state.posts.filter(p=>p.date.startsWith(key)).sort((a,b)=>a.date.localeCompare(b.date));
+  const rows=rowsOf(ps),fish=rows.filter(x=>!isIka(x.species)),ika=rows.filter(x=>isIka(x.species));
+  const days=new Set(ps.map(p=>p.date)).size;const sp=new Set(fish.map(x=>x.species)).size;
+  return `<section class="sec"><div class="monthbar"><button class="icon-btn" data-act="revPrev" aria-label="前の月">‹</button><b>${r.y}年${r.m+1}月</b><button class="icon-btn" data-act="revNext" aria-label="次の月">›</button></div>
+  <div class="stats four"><div class="stat"><b>${days}</b><span class="muted">釣行日</span></div><div class="stat"><b>${sum(fish)}</b><span class="muted">釣果数</span></div><div class="stat"><b>${sp}</b><span class="muted">魚種</span></div><div class="stat"><b>${sum(ika)}</b><span class="muted">白イカ</span></div></div>
+  <div class="card" style="padding:12px 14px;margin-bottom:16px"><h2 style="font-size:15px">メンバー別の釣果数</h2>
+  ${fish.length?bars(byUser(fish),"匹",""):`<div class="empty">この月の釣果はありません</div>`}</div>
+  ${ika.length?`<div class="card" style="padding:12px 14px;margin-bottom:16px"><h2 style="font-size:15px">メンバー別の白イカ（杯数）</h2>${bars(byUser(ika),"杯","ika")}</div>`:""}
+  ${ps.map(postCard).join("")}</section>`;
+}
+function vCal(){
+  const c=state.cal;const first=new Date(c.y,c.m,1);const n=new Date(c.y,c.m+1,0).getDate();const t0=ymd(new Date());
+  const dates=new Set(state.posts.map(p=>p.date));let cells="";
+  for(let i=0;i<first.getDay();i++)cells+=`<div class="day blank"></div>`;
+  for(let d=1;d<=n;d++){const dt=new Date(c.y,c.m,d);const k=ymd(dt);const t=tideName(dt);
+    cells+=`<button class="day ${k===t0?"today":""} ${state.calSel===k?"sel":""}" data-day="${k}" aria-label="${c.m+1}月${d}日 ${t}${dates.has(k)?" 釣行あり":""}">
+    <span class="d">${d}</span><span class="t ${t==="大潮"?"big":t==="中潮"?"mid":""}">${t}</span>${dates.has(k)?`<span class="dot"></span>`:""}</button>`;}
+  let detail="";
+  if(state.calSel){const dt=dateOf(state.calSel);const ps=state.posts.filter(p=>p.date===state.calSel);
+    detail=`<div class="card tidebox" style="margin-top:14px"><div class="row"><b>${dt.getMonth()+1}月${dt.getDate()}日</b><span class="tag ${tideName(dt)==="大潮"?"red":"teal"}">${tideName(dt)}</span></div>
+    <p class="muted" style="margin:8px 0">満潮・干潮の時刻は今後追加予定です</p>
+    ${ps.length?ps.map(p=>`<div style="padding:8px 0;border-top:1px solid var(--line)"><b>${esc(nameOf(p.user))}さん</b>　${p.items.map(itemLine).join("、")}</div>`).join(""):`<p class="muted" style="margin:0">この日の釣行記録はありません</p>`}</div>`;}
+  return `<section class="sec"><div class="monthbar"><button class="icon-btn" data-act="calPrev" aria-label="前の月">‹</button><b>${c.y}年${c.m+1}月</b><button class="icon-btn" data-act="calNext" aria-label="次の月">›</button></div>
+  <div class="cal">${["日","月","火","水","木","金","土"].map((w,i)=>`<div class="dow ${i===0?"sun":""}">${w}</div>`).join("")}${cells}</div>
+  <div class="legend"><span><span style="color:var(--tai);font-weight:700">大潮</span>・<span style="color:var(--tide)">中潮</span>・小潮など</span><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tai)"></span> 釣行した日</span></div>
+  ${detail}</section>`;
+}
+function vMe(){
+  const y=String(today.getFullYear());const mine=postsOfYear(y).filter(p=>p.user===state.user);
+  const rows=rowsOf(mine),fish=rows.filter(x=>!isIka(x.species)),ika=rows.filter(x=>isIka(x.species));
+  const all=rowsOf(state.posts.filter(p=>p.user===state.user));const best={};let ikaBest=null;
+  all.forEach(r=>{if(isIka(r.species)){if(!ikaBest||Number(r.count)>Number(ikaBest.count))ikaBest=r;return}
+    const b=best[r.species];if(!b||(Number(r.size)||0)>(Number(b.size)||0))best[r.species]=r});
+  const rk=k=>{const l=rankList(y,k);const i=l.findIndex(r=>r.u===state.user);return i<0?"-":(i+1)+"位"};
+  const bestRows=Object.values(best).sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0)).map(r=>`<tr><td>${esc(r.species)}</td><td class="muted">${esc(r.date.replace(/-/g,"/"))}</td><td style="text-align:right"><b>${r.size?esc(r.size)+"cm":"-"}</b></td></tr>`)
+    .concat(ikaBest?[`<tr><td>白イカ（1日最多）</td><td class="muted">${esc(ikaBest.date.replace(/-/g,"/"))}</td><td style="text-align:right"><b>${esc(ikaBest.count)}杯</b></td></tr>`]:[]);
+  const admin=isAdmin()?`<h2>管理者メニュー</h2>
+  <div class="card" style="padding:14px;margin-bottom:16px"><b>メンバーを追加</b>
+    <div class="field" style="margin-top:10px"><label for="a-id">ログインID（半角英数字）</label><input id="a-id" autocapitalize="off" autocomplete="off" placeholder="sato"></div>
+    <div class="field"><label for="a-name">表示名</label><input id="a-name" placeholder="佐藤"></div>
+    <div class="field"><label for="a-pw">初期パスワード（6文字以上）</label><input id="a-pw" autocomplete="off" placeholder="本人に伝えるパスワード"></div>
+    <button class="btn" style="width:100%" data-act="adminCreate">メンバーを追加する</button>
+    <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+    <b>パスワードをリセット</b>
+    <div class="field" style="margin-top:10px"><label for="a-user">メンバー</label><select id="a-user">${state.profiles.map(p=>`<option value="${p.id}">${esc(p.display_name)}（${esc(p.login_id)}）</option>`).join("")}</select></div>
+    <div class="field"><label for="a-newpw">新しいパスワード（6文字以上）</label><input id="a-newpw" autocomplete="off"></div>
+    <button class="btn" style="width:100%" data-act="adminReset">パスワードをリセットする</button>
+    <div id="adminMsg" class="muted" style="margin-top:10px"></div></div>
+  <div class="card" style="padding:4px 14px;margin-bottom:20px"><table class="best" style="width:100%;border-collapse:collapse">
+    ${state.profiles.map(p=>`<tr><td>${esc(p.display_name)}</td><td class="muted">${esc(p.login_id)}</td><td style="text-align:right">${p.role==="admin"?"管理者":"メンバー"}</td></tr>`).join("")}</table></div>`:"";
+  return `<section class="sec"><h2>${esc(nameOf(state.user))}さんの${y}年</h2>
+  <div class="stats four"><div class="stat"><b>${new Set(mine.map(p=>p.date)).size}</b><span class="muted">釣行日</span></div><div class="stat"><b>${sum(fish)}</b><span class="muted">釣果数</span></div><div class="stat"><b>${new Set(fish.map(x=>x.species)).size}</b><span class="muted">魚種</span></div><div class="stat"><b>${sum(ika)}</b><span class="muted">白イカ</span></div></div>
+  <div class="card" style="padding:4px 14px;margin-bottom:16px"><table class="best" style="width:100%;border-collapse:collapse">
+  ${Object.entries(CATS).map(([k,[l]])=>`<tr><td>${l}部門</td><td style="text-align:right"><b>${rk(k)}</b></td></tr>`).join("")}</table></div>
+  <h2>魚種別の自己ベスト</h2><div class="card" style="padding:4px 14px;margin-bottom:20px"><table class="best" style="width:100%;border-collapse:collapse">
+  ${bestRows.length?bestRows.join(""):`<tr><td class="muted">まだ記録がありません</td></tr>`}</table></div>
+  <h2>パスワードの変更</h2>
+  <div class="card" style="padding:14px;margin-bottom:20px">
+    <div class="field"><label for="me-pw">新しいパスワード（6文字以上）</label><input id="me-pw" type="password" autocomplete="new-password"></div>
+    <div class="field"><label for="me-pw2">もう一度入力</label><input id="me-pw2" type="password" autocomplete="new-password"></div>
+    <div id="pwMsg" class="err" style="margin-bottom:10px"></div>
+    <button class="btn" style="width:100%" data-act="changePw">パスワードを変更する</button></div>
+  ${admin}
+  <button class="btn" style="width:100%" data-act="logout">ログアウト</button></section>`;
+}
+const hm=d=>d.getHours()+":"+pad(d.getMinutes());
+function dayLabel(d){const k=ymd(d),t=new Date(),y=new Date();y.setDate(y.getDate()-1);
+  return k===ymd(t)?"今日":k===ymd(y)?"昨日":`${d.getFullYear()!==t.getFullYear()?d.getFullYear()+"年":""}${d.getMonth()+1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`}
+function vChat(){
+  let last="",html="";
+  state.chat.forEach(m=>{const d=new Date(m.at);
+    if(ymd(d)!==last){html+=`<div class="sys">${dayLabel(d)}</div>`;last=ymd(d)}
+    if(m.kind==="catch"){html+=`<button class="sys catch-note" data-go="home">${esc(nameOf(m.user))}さんが釣果を投稿しました：${esc(m.text)}</button>`;return}
+    const me=m.user===state.user;const img=m.photoPath&&state.urls[m.photoPath];
+    html+=`<div class="msg ${me?"me":""}">${me?"":`<span class="av" aria-hidden="true">${esc(nameOf(m.user)[0])}</span>`}<div class="col">${me?"":`<div class="nm">${esc(nameOf(m.user))}</div>`}
+      <div class="line">${m.kind==="photo"?(img?`<img class="chat-img" src="${esc(img)}" alt="送られた写真">`:`<div class="bubble">（写真）</div>`):`<div class="bubble">${esc(m.text)}</div>`}<span class="time">${hm(d)}</span></div></div></div>`;
+  });
+  return `<section class="sec chat-sec"><h2>釣り仲間（${state.profiles.length}人）</h2><div class="chat">${html||`<div class="empty">最初のメッセージを送ってみましょう</div>`}</div></section>
+  <div class="chatbar"><div class="chatbar-in"><label class="icon-btn cam-btn" for="chat-photo" aria-label="写真を送る">${CAM}</label><input id="chat-photo" type="file" accept="image/*" hidden>
+  <textarea id="chat-text" rows="1" placeholder="メッセージを入力" aria-label="メッセージ">${esc(state.chatDraft)}</textarea>
+  <button class="send" data-act="send">送信</button></div></div>`;
+}
+function vLogin(){
+  return `<main class="login"><img class="login-logo" src="images/logo-480.png" alt="Healthy Home のロゴ"><h1>釣果ボード</h1><div class="muted sub">社内の釣り仲間用</div>
+  <svg class="wave" viewBox="0 0 300 28" preserveAspectRatio="none" aria-hidden="true"><path d="M0 14c25-12 50-12 75 0s50 12 75 0 50-12 75 0 50 12 75 0" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>
+  <div class="field"><label for="lid">ID</label><input id="lid" autocomplete="username" autocapitalize="off" placeholder="ログインID"></div>
+  <div class="field"><label for="lpw">パスワード</label><input id="lpw" type="password" autocomplete="current-password"></div>
+  <div id="lerr" class="err" style="margin-bottom:10px"></div>
+  <button class="btn primary" data-act="login" ${state.busy?"disabled":""}>${state.busy?"ログイン中…":"ログイン"}</button>
+  <p class="muted" style="margin-top:16px">アカウントは管理者が作成します。IDやパスワードが分からないときは管理者に聞いてください。</p></main>`;
+}
+function vMessage(msg){
+  return `<main class="login"><img class="login-logo" src="images/logo-480.png" alt="Healthy Home のロゴ"><h1>釣果ボード</h1><p class="muted sub">${msg}</p></main>`;
+}
+function render(){
+  const root=document.getElementById("root");
+  if(!sb){root.innerHTML=vMessage("接続の設定がまだです（config.js を設定してください）");return}
+  if(state.booting){root.innerHTML=vMessage("読み込み中…");return}
+  if(!state.user){root.innerHTML=vLogin();return}
+  if(state.view==="chat")markRead();
+  const v={home:vHome,chat:vChat,post:vPost,rank:vRank,rev:vRev,cal:vCal,me:vMe}[state.view]||vHome;
+  root.innerHTML=`<div class="app">${header()}${v()}</div>${nav()}`;
+  if(state.view==="chat"){const bar=root.querySelector(".chatbar"),nv=root.querySelector(".nav");bar.style.bottom=nv.offsetHeight+"px";
+    grow(document.getElementById("chat-text"));requestAnimationFrame(()=>window.scrollTo(0,document.documentElement.scrollHeight))}
+}
+/* 入力中の画面をこわさずに、新しいデータを反映する */
+function refresh(){
+  if(!state.user||state.booting)return;
+  if(state.view==="post"||state.view==="me"){const n=document.querySelector(".nav");if(n)n.outerHTML=nav();return}
+  const ae=document.activeElement;const keep=ae&&ae.id==="chat-text"?[ae.selectionStart,ae.selectionEnd]:null;
+  render();
+  if(keep){const t=document.getElementById("chat-text");if(t){t.focus();t.setSelectionRange(...keep)}}
+}
+function grow(ta){if(!ta)return;ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight+2,120)+"px"}
+function readDraft(){
+  const g=id=>document.getElementById(id);const d=state.draft;if(!d||!g("f-date"))return;
+  d.user=g("f-user").value;d.date=g("f-date").value;d.spot=g("f-spot").value.trim();d.memo=g("f-memo").value.trim();
+  if(d.mode==="ika")d.ikaCount=g("f-ika").value;
+  else d.items=d.items.map((it,i)=>({species:g("f-sp-"+i).value.trim(),size:g("f-size-"+i).value,count:g("f-count-"+i).value}));
+}
+/* 写真を縮小（長辺900px・JPEG）。描き直すことで位置情報などの付加情報も消える */
+function shrink(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const s=Math.min(1,900/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",0.72))};img.onerror=rej;img.src=fr.result};fr.onerror=rej;fr.readAsDataURL(file)})}
+
+/* ---------- Supabase とのやり取り ---------- */
+async function boot(){
+  state.booting=true;render();
+  try{
+    await loadProfiles();
+    state.me=state.profiles.find(p=>p.id===state.user);
+    if(!state.me){await sb.auth.signOut();state.user=null;throw new Error("メンバー情報が見つかりません。管理者に連絡してください")}
+    await Promise.all([loadPosts(),loadChat()]);
+    subscribe();
+    state.draft=newDraft();
+  }catch(e){toast(errMsg(e))}
+  state.booting=false;render();
+}
+async function loadProfiles(){
+  const{data,error}=await sb.from("profiles").select("id,login_id,display_name,role,created_at").order("created_at");
+  if(error)throw error;
+  state.profiles=data;MEMBERS={};data.forEach(p=>MEMBERS[p.id]=p.display_name);
+}
+async function loadPosts(){
+  const{data,error}=await sb.from("posts").select("id,user_id,posted_by,kind,caught_on,spot_name,memo,photo_path,created_at,catch_items(species,size_cm,count,sort)")
+    .order("caught_on",{ascending:false}).order("created_at",{ascending:false}).limit(5000);
+  if(error)throw error;
+  state.posts=data.map(r=>({id:r.id,date:r.caught_on,user:r.user_id,postedBy:r.posted_by,kind:r.kind,spot:r.spot_name,memo:r.memo,photoPath:r.photo_path,
+    items:(r.catch_items||[]).sort((a,b)=>a.sort-b.sort).map(i=>({species:i.species,size:i.size_cm,count:i.count}))}));
+  await signPhotos(state.posts.slice(0,60).map(p=>p.photoPath));
+}
+const toMsg=m=>({id:m.id,user:m.user_id,kind:m.kind,text:m.body,photoPath:m.photo_path,postId:m.post_id,at:new Date(m.created_at).toISOString()});
+async function loadChat(){
+  const[{data,error},{data:rd}]=await Promise.all([
+    sb.from("chat_messages").select("id,user_id,kind,body,photo_path,post_id,created_at").order("created_at",{ascending:false}).limit(300),
+    sb.from("chat_reads").select("last_read_at").eq("user_id",state.user).maybeSingle()]);
+  if(error)throw error;
+  state.chat=data.reverse().map(toMsg);
+  state.chatRead=rd?new Date(rd.last_read_at).toISOString():new Date().toISOString();
+  await signPhotos(state.chat.map(m=>m.photoPath));
+}
+let readTimer;
+function markRead(){
+  const last=state.chat.length?state.chat[state.chat.length-1].at:"";const now=new Date().toISOString();
+  const r=last>now?last:now;if(state.chatRead>=r)return;state.chatRead=r;
+  clearTimeout(readTimer);readTimer=setTimeout(()=>{sb.from("chat_reads").upsert({user_id:state.user,last_read_at:state.chatRead}).then(()=>{})},800);
+}
+/* 写真は非公開の場所に保存しているので、見るための期限付きアドレスを発行する */
+async function signPhotos(paths){
+  const need=[...new Set(paths.filter(p=>p&&!state.urls[p]))];if(!need.length)return;
+  const{data,error}=await sb.storage.from("photos").createSignedUrls(need,60*60*24);
+  if(error||!data)return;data.forEach(d=>{if(d.signedUrl)state.urls[d.path]=d.signedUrl});
+}
+async function uploadPhoto(dataUrl,folder){
+  const blob=await(await fetch(dataUrl)).blob();
+  const path=`${state.user}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+  const{error}=await sb.storage.from("photos").upload(path,blob,{contentType:"image/jpeg"});
+  if(error)throw error;
+  state.urls[path]=dataUrl;return path;
+}
+function subscribe(){
+  sb.removeAllChannels();
+  sb.channel("chat-room").on("postgres_changes",{event:"INSERT",schema:"public",table:"chat_messages"},async({new:m})=>{
+    if(state.chat.some(x=>x.id===m.id))return;
+    const msg=toMsg(m);
+    if(msg.photoPath)await signPhotos([msg.photoPath]);
+    if(!state.chat.some(x=>x.id===m.id))state.chat.push(msg);
+    if(msg.kind==="catch"){try{await loadPosts()}catch(e){}}
+    refresh();
+  }).subscribe();
+}
+async function submitPost(){
+  readDraft();const d=state.draft,err=document.getElementById("formErr");let items;
+  if(!d.date){err.textContent="釣った日を入力してください";return}
+  if(d.mode==="ika"){
+    if(!(Number(d.ikaCount)>=1)){err.textContent="杯数は1以上で入力してください";return}
+    items=[{species:IKA,size_cm:null,count:Number(d.ikaCount),sort:0}];
+  }else{
+    for(const[i,it]of d.items.entries()){const no=d.items.length>1?`${i+1}つ目の`:"";
+      if(!it.species){err.textContent=no+"魚種を入力してください";return}
+      if(isIka(it.species)){err.textContent="白イカは上の「白イカ」に切り替えて投稿してください";return}
+      if(!(Number(it.count)>=1)){err.textContent=no+"匹数は1以上で入力してください";return}}
+    items=d.items.map((it,i)=>({species:it.species,size_cm:it.size?Number(it.size):null,count:Number(it.count),sort:i}));
+  }
+  state.busy=true;render();
+  try{
+    const photoPath=d.photo?await uploadPhoto(d.photo,"posts"):null;
+    const{error}=await sb.rpc("create_post",{p:{user_id:d.user,kind:d.mode,caught_on:d.date,spot_name:d.spot,memo:d.memo,photo_path:photoPath,items}});
+    if(error)throw error;
+    await loadPosts();
+    const who=d.user!==state.user?`${nameOf(d.user)}さんの釣果として`:"";
+    state.draft=newDraft();state.view="home";toast(`${who}投稿しました`);
+  }catch(e){toast("投稿できませんでした："+errMsg(e))}
+  state.busy=false;render();window.scrollTo(0,0);
+}
+async function deletePost(id){
+  const p=state.posts.find(x=>x.id===id);if(!p||!confirm("この投稿を削除しますか？\n（元に戻せません）"))return;
+  const{error}=await sb.from("posts").delete().eq("id",id);
+  if(error){toast("削除できませんでした："+errMsg(error));return}
+  if(p.photoPath)sb.storage.from("photos").remove([p.photoPath]).then(()=>{});
+  state.posts=state.posts.filter(x=>x.id!==id);state.chat=state.chat.filter(m=>m.postId!==id);
+  toast("削除しました");render();
+}
+async function sendChat(){
+  const ta=document.getElementById("chat-text");const t=ta.value.trim();if(!t){ta.focus();return}
+  ta.value="";state.chatDraft="";grow(ta);
+  const{data,error}=await sb.from("chat_messages").insert({user_id:state.user,kind:"text",body:t}).select().single();
+  if(error){toast("送信できませんでした："+errMsg(error));state.chatDraft=t;refresh();return}
+  if(!state.chat.some(m=>m.id===data.id))state.chat.push(toMsg(data));
+  refresh();
+}
+async function sendChatPhoto(file){
+  try{
+    const dataUrl=await shrink(file);toast("写真を送信しています…");
+    const path=await uploadPhoto(dataUrl,"chat");
+    const{data,error}=await sb.from("chat_messages").insert({user_id:state.user,kind:"photo",photo_path:path}).select().single();
+    if(error)throw error;
+    if(!state.chat.some(m=>m.id===data.id))state.chat.push(toMsg(data));
+    refresh();
+  }catch(e){toast("写真を送れませんでした："+errMsg(e))}
+}
+async function adminCall(body){
+  const{data,error}=await sb.functions.invoke("admin-users",{body});
+  if(error){let msg=error.message;try{const j=await error.context.json();msg=j.error||msg}catch(_){}throw new Error(msg)}
+  if(data?.error)throw new Error(data.error);
+  return data;
+}
+async function login(){
+  const id=document.getElementById("lid").value.trim().toLowerCase(),pw=document.getElementById("lpw").value;
+  const le=document.getElementById("lerr");
+  if(!id||!pw){le.textContent="IDとパスワードを入力してください";return}
+  state.busy=true;render();
+  const{data,error}=await sb.auth.signInWithPassword({email:id+EMAIL_DOMAIN,password:pw});
+  state.busy=false;
+  if(error){render();document.getElementById("lid").value=id;document.getElementById("lerr").textContent=errMsg(error);return}
+  state.user=data.user.id;state.view="home";await boot();
+}
+
+/* ---------- 操作 ---------- */
+document.addEventListener("click",async e=>{
+  const go=e.target.closest("[data-go]");
+  if(go){if(state.view==="post")readDraft();state.view=go.dataset.go;render();window.scrollTo(0,0);return}
+  const rc=e.target.closest("[data-rcat]");if(rc){state.rankCat=rc.dataset.rcat;render();return}
+  const md=e.target.closest("[data-mode]");if(md){readDraft();state.draft.mode=md.dataset.mode;render();return}
+  const dy=e.target.closest("[data-day]");if(dy){state.calSel=dy.dataset.day;render();return}
+  const a=e.target.closest("[data-act]");if(!a)return;const act=a.dataset.act;
+  if(act==="login"){login();return}
+  if(act==="logout"){await sb.auth.signOut();sb.removeAllChannels();state.user=null;state.me=null;state.draft=null;state.posts=[];state.chat=[];render();return}
+  if(act==="revPrev"||act==="revNext"){const d=new Date(state.rev.y,state.rev.m+(act==="revNext"?1:-1),1);state.rev={y:d.getFullYear(),m:d.getMonth()};render();return}
+  if(act==="calPrev"||act==="calNext"){const d=new Date(state.cal.y,state.cal.m+(act==="calNext"?1:-1),1);state.cal={y:d.getFullYear(),m:d.getMonth()};state.calSel=null;render();return}
+  if(act==="inc"||act==="dec"){const inp=document.getElementById(a.dataset.t);inp.value=Math.max(1,(parseInt(inp.value)||0)+(act==="inc"?1:-1));const fe=document.getElementById("formErr");if(fe)fe.textContent="";return}
+  if(act==="addItem"){readDraft();state.draft.items.push({species:"",size:"",count:1});render();return}
+  if(act==="delItem"){readDraft();state.draft.items.splice(Number(a.dataset.i),1);render();return}
+  if(act==="submit"){if(!state.busy)submitPost();return}
+  if(act==="delPost"){deletePost(a.dataset.id);return}
+  if(act==="send"){sendChat();return}
+  if(act==="changePw"){const p1=document.getElementById("me-pw").value,p2=document.getElementById("me-pw2").value,msg=document.getElementById("pwMsg");
+    if(p1.length<6){msg.textContent="パスワードは6文字以上にしてください";return}
+    if(p1!==p2){msg.textContent="2回の入力が一致しません";return}
+    a.disabled=true;const{error}=await sb.auth.updateUser({password:p1});a.disabled=false;
+    if(error){msg.textContent="変更できませんでした："+errMsg(error);return}
+    document.getElementById("me-pw").value="";document.getElementById("me-pw2").value="";msg.textContent="";toast("パスワードを変更しました");return}
+  if(act==="adminCreate"||act==="adminReset"){const msg=document.getElementById("adminMsg");const g=id=>document.getElementById(id).value.trim();
+    const body=act==="adminCreate"?{action:"create",login_id:g("a-id").toLowerCase(),display_name:g("a-name"),password:g("a-pw")}:{action:"reset",user_id:g("a-user"),password:g("a-newpw")};
+    a.disabled=true;msg.textContent="処理中…";
+    try{await adminCall(body);
+      if(act==="adminCreate"){await loadProfiles();toast(`${body.display_name}さんを追加しました（ID：${body.login_id}）`)}
+      else toast(`${nameOf(body.user_id)}さんのパスワードをリセットしました`);
+      render();
+    }catch(e){a.disabled=false;msg.innerHTML=`<span class="err">${esc(errMsg(e))}</span>`}
+    return}
+});
+document.addEventListener("change",async e=>{
+  if(e.target.id==="rankYear"){state.rankYear=e.target.value;render();return}
+  if(e.target.id==="f-user"){readDraft();render();return}
+  if(e.target.id==="chat-photo"&&e.target.files[0]){sendChatPhoto(e.target.files[0]);return}
+  if((e.target.id==="ph-cam"||e.target.id==="ph-lib")&&e.target.files[0]){readDraft();
+    try{state.draft.photo=await shrink(e.target.files[0]);render()}
+    catch(err){toast("この写真は読み込めませんでした。別の写真を選んでください")}}
+});
+document.addEventListener("input",e=>{if(e.target.id==="chat-text"){state.chatDraft=e.target.value;grow(e.target);return}
+  if(e.target.closest(".field")){const er=document.getElementById("formErr")||document.getElementById("lerr");if(er)er.textContent=""}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&!state.user&&(e.target.id==="lid"||e.target.id==="lpw"))document.querySelector('[data-act="login"]')?.click()});
+/* スマホでアプリに戻ってきたときに、最新の状態を読み込み直す */
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState!=="visible"||!state.user||state.booting)return;
+  Promise.all([loadPosts(),loadChat()]).then(()=>{subscribe();refresh()}).catch(()=>{});
+});
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  state.rev={y:today.getFullYear(),m:today.getMonth()};state.cal={y:today.getFullYear(),m:today.getMonth()};state.calSel=ymd(today);
+  if(!window.supabase||!window.SUPABASE_URL||/ここに/.test(window.SUPABASE_URL+window.SUPABASE_ANON_KEY)){render();return}
+  sb=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);
+  const{data:{session}}=await sb.auth.getSession();
+  if(session){state.user=session.user.id;await boot()}else render();
+})();
+</script>
+</body>
+</html>
