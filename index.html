@@ -201,6 +201,8 @@ function errMsg(e){
   const m=String(e?.message||e||"");
   if(/Invalid login credentials/i.test(m))return "IDかパスワードが違います";
   if(/Failed to fetch|NetworkError|Load failed/i.test(m))return "通信できませんでした。電波の良い場所でもう一度お試しください";
+  if(/different from the old password/i.test(m))return "今と同じパスワードは使えません。別のパスワードにしてください";
+  if(/at least 6 characters|weak/i.test(m))return "パスワードは6文字以上にしてください";
   if(/JWT|session/i.test(m))return "ログインの期限が切れました。もう一度ログインしてください";
   return m||"エラーが発生しました";
 }
@@ -425,6 +427,17 @@ function vLogin(){
   <button class="btn primary" data-act="login" ${state.busy?"disabled":""}>${state.busy?"ログイン中…":"ログイン"}</button>
   <p class="muted" style="margin-top:16px">アカウントは管理者が作成します。IDやパスワードが分からないときは管理者に聞いてください。</p></main>`;
 }
+function vFirstPw(){
+  return `<main class="login"><img class="login-logo" src="images/logo-480.png" alt="Healthy Home のロゴ"><h1>ようこそ</h1>
+  <div class="muted sub">${esc(nameOf(state.user))}さん、はじめに自分のパスワードを決めてください</div>
+  <svg class="wave" viewBox="0 0 300 28" preserveAspectRatio="none" aria-hidden="true"><path d="M0 14c25-12 50-12 75 0s50 12 75 0 50-12 75 0 50 12 75 0" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>
+  <div class="field"><label for="fp1">新しいパスワード（6文字以上）</label><input id="fp1" type="password" autocomplete="new-password"></div>
+  <div class="field"><label for="fp2">もう一度入力</label><input id="fp2" type="password" autocomplete="new-password"></div>
+  <div id="fpErr" class="err" style="margin-bottom:10px"></div>
+  <button class="btn primary" data-act="firstPw" ${state.busy?"disabled":""}>${state.busy?"設定中…":"パスワードを決めて始める"}</button>
+  <p class="muted" style="margin-top:16px">管理者から伝えられた初期パスワードは、ここで自分だけのパスワードに変わります。次回からは新しいパスワードでログインしてください。</p>
+  <button class="btn" style="width:100%;margin-top:6px" data-act="logout">ログアウト</button></main>`;
+}
 function vMessage(msg){
   return `<main class="login"><img class="login-logo" src="images/logo-480.png" alt="Healthy Home のロゴ"><h1>釣果ボード</h1><p class="muted sub">${msg}</p></main>`;
 }
@@ -433,6 +446,7 @@ function render(){
   if(!sb){root.innerHTML=vMessage("接続の設定がまだです（config.js を設定してください）");return}
   if(state.booting){root.innerHTML=vMessage("読み込み中…");return}
   if(!state.user){root.innerHTML=vLogin();return}
+  if(state.me?.must_change_password){root.innerHTML=vFirstPw();return}
   if(state.view==="chat")markRead();
   const v={home:vHome,chat:vChat,post:vPost,rank:vRank,rev:vRev,cal:vCal,me:vMe}[state.view]||vHome;
   root.innerHTML=`<div class="app">${header()}${v()}</div>${nav()}`;
@@ -441,7 +455,7 @@ function render(){
 }
 /* 入力中の画面をこわさずに、新しいデータを反映する */
 function refresh(){
-  if(!state.user||state.booting)return;
+  if(!state.user||state.booting||state.me?.must_change_password)return;
   if(state.view==="post"||state.view==="me"){const n=document.querySelector(".nav");if(n)n.outerHTML=nav();return}
   const ae=document.activeElement;const keep=ae&&ae.id==="chat-text"?[ae.selectionStart,ae.selectionEnd]:null;
   render();
@@ -471,7 +485,7 @@ async function boot(){
   state.booting=false;render();
 }
 async function loadProfiles(){
-  const{data,error}=await sb.from("profiles").select("id,login_id,display_name,role,created_at").order("created_at");
+  const{data,error}=await sb.from("profiles").select("id,login_id,display_name,role,must_change_password,created_at").order("created_at");
   if(error)throw error;
   state.profiles=data;MEMBERS={};data.forEach(p=>MEMBERS[p.id]=p.display_name);
 }
@@ -608,11 +622,21 @@ document.addEventListener("click",async e=>{
   if(act==="submit"){if(!state.busy)submitPost();return}
   if(act==="delPost"){deletePost(a.dataset.id);return}
   if(act==="send"){sendChat();return}
+  if(act==="firstPw"){const p1=document.getElementById("fp1").value,p2=document.getElementById("fp2").value,fe=document.getElementById("fpErr");
+    if(p1.length<6){fe.textContent="パスワードは6文字以上にしてください";return}
+    if(p1!==p2){fe.textContent="2回の入力が一致しません";return}
+    state.busy=true;a.disabled=true;a.textContent="設定中…";
+    const{error}=await sb.auth.updateUser({password:p1});
+    if(!error){const r=await sb.rpc("password_changed");if(r.error){state.busy=false;a.disabled=false;a.textContent="パスワードを決めて始める";fe.textContent="設定できませんでした："+errMsg(r.error);return}}
+    state.busy=false;
+    if(error){a.disabled=false;a.textContent="パスワードを決めて始める";fe.textContent="設定できませんでした："+errMsg(error);return}
+    state.me.must_change_password=false;state.view="home";render();window.scrollTo(0,0);toast("パスワードを設定しました。次回からはこのパスワードでログインしてください");return}
   if(act==="changePw"){const p1=document.getElementById("me-pw").value,p2=document.getElementById("me-pw2").value,msg=document.getElementById("pwMsg");
     if(p1.length<6){msg.textContent="パスワードは6文字以上にしてください";return}
     if(p1!==p2){msg.textContent="2回の入力が一致しません";return}
     a.disabled=true;const{error}=await sb.auth.updateUser({password:p1});a.disabled=false;
     if(error){msg.textContent="変更できませんでした："+errMsg(error);return}
+    sb.rpc("password_changed").then(()=>{});
     document.getElementById("me-pw").value="";document.getElementById("me-pw2").value="";msg.textContent="";toast("パスワードを変更しました");return}
   if(act==="adminCreate"||act==="adminReset"){const msg=document.getElementById("adminMsg");const g=id=>document.getElementById(id).value.trim();
     const body=act==="adminCreate"?{action:"create",login_id:g("a-id").toLowerCase(),display_name:g("a-name"),password:g("a-pw")}:{action:"reset",user_id:g("a-user"),password:g("a-newpw")};
@@ -634,7 +658,11 @@ document.addEventListener("change",async e=>{
 });
 document.addEventListener("input",e=>{if(e.target.id==="chat-text"){state.chatDraft=e.target.value;grow(e.target);return}
   if(e.target.closest(".field")){const er=document.getElementById("formErr")||document.getElementById("lerr");if(er)er.textContent=""}});
-document.addEventListener("keydown",e=>{if(e.key==="Enter"&&!state.user&&(e.target.id==="lid"||e.target.id==="lpw"))document.querySelector('[data-act="login"]')?.click()});
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Enter")return;
+  if(!state.user&&(e.target.id==="lid"||e.target.id==="lpw"))document.querySelector('[data-act="login"]')?.click();
+  if(e.target.id==="fp1"||e.target.id==="fp2")document.querySelector('[data-act="firstPw"]')?.click();
+});
 /* スマホでアプリに戻ってきたときに、最新の状態を読み込み直す */
 document.addEventListener("visibilitychange",()=>{
   if(document.visibilityState!=="visible"||!state.user||state.booting)return;

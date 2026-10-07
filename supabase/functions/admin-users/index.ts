@@ -49,6 +49,8 @@ Deno.serve(async (req) => {
     if (body.action === "reset") {
       const { error } = await admin.auth.admin.updateUserById(String(body.user_id), { password });
       if (error) return json({ error: error.message }, 400);
+      // 次のログインで、本人に自分のパスワードを決めてもらう
+      await admin.from("profiles").update({ must_change_password: true }).eq("id", String(body.user_id));
       return json({ ok: true });
     }
 

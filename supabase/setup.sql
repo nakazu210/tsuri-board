@@ -218,3 +218,13 @@ begin
   alter publication supabase_realtime add table public.chat_messages;
 exception when duplicate_object then null;
 end $$;
+-- 初回ログイン時にパスワード変更を求めるための印
+alter table public.profiles add column if not exists must_change_password boolean not null default true;
+
+-- 自分でパスワードを変えたら、印を外す
+create or replace function public.password_changed() returns void
+language sql security definer set search_path = public as $$
+  update public.profiles set must_change_password = false where id = auth.uid();
+$$;
+revoke execute on function public.password_changed() from public, anon;
+grant execute on function public.password_changed() to authenticated;
