@@ -45,7 +45,7 @@ h2{font-size:17px;margin:0 0 10px;font-weight:700}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
 .muted{color:var(--sub);font-size:13px}
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-.nav-in{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr)}
+.nav-in{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
 .nav button{position:relative;background:none;border:none;padding:8px 0 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--sub)}
 .nav button.on{color:var(--sea);font-weight:700}
 .nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -200,6 +200,12 @@ h2{font-size:17px;margin:0 0 10px;font-weight:700}
 .calc .row{padding:3px 0;font-size:14px}
 .calc .total{border-top:1px solid var(--line);margin-top:4px;padding-top:8px;color:var(--sea)}
 .link.edit{color:var(--tide)}
+.mks{position:absolute;bottom:4px;display:flex;gap:3px}
+.mk{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle}
+.mk.fish{background:var(--tai)}
+.mk.trip{background:var(--tide)}
+.mk.plan{border:1.5px solid var(--tide);background:transparent;width:8px;height:8px}
+.day-catches{padding:8px 10px;background:var(--seaBg);border-radius:10px;font-size:13px;margin-bottom:6px}
 .btn[disabled]{opacity:.6}
 input,select,textarea{font-size:16px}
 </style>
@@ -220,7 +226,7 @@ const SPECIES=["真鯛","チダイ","アジ","サバ","イワシ","キス","メ�
 let MEMBERS={};   // メンバーのID → 表示名
 let sb=null;      // Supabase との接続
 let state={user:null,me:null,profiles:[],view:"home",posts:[],urls:{},chat:[],chatRead:null,chatDraft:"",
-  rankYear:null,rankCat:"size",rankMode:"year",logs:[],settings:{},logDraft:null,rev:null,cal:null,calSel:null,draft:null,booting:false,busy:false};
+  rankYear:null,rankCat:"size",rankMode:"year",calMode:"cal",logs:[],settings:{},logDraft:null,rev:null,cal:null,calSel:null,draft:null,booting:false,busy:false};
 const today=new Date();
 const pad=n=>String(n).padStart(2,"0");
 const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
@@ -283,7 +289,7 @@ function header(){
 }
 function unread(){const r=state.chatRead||"";return state.chat.filter(m=>m.kind!=="catch"&&m.user!==state.user&&m.at>r).length}
 function nav(){
-  const it=[["home","ホーム",ICON.home],["chat","チャット",ICON.chat],["post","釣果UP",ICON.plus],["log","釣り日記",ICON.log],["cal","カレンダー",ICON.cal],["rank","ランキング",ICON.rank]];
+  const it=[["home","ホーム",ICON.home],["chat","チャット",ICON.chat],["post","釣果UP",ICON.plus],["cal","カレンダー",ICON.cal],["rank","ランキング",ICON.rank]];
   const un=unread();
   return `<nav class="nav"><div class="nav-in">${it.map(([k,l,i])=>k==="post"
    ?`<button class="post-btn ${state.view===k?"on":""}" data-go="post"><span class="circle">${i}</span>${l}</button>`
@@ -368,9 +374,11 @@ const logPeople=l=>(l.participants||[]).length+(Number(l.guest_count)||0);
 const logTotal=l=>logPeople(l)*(Number(l.fee_per_person)||0);
 const logRepay=l=>logTotal(l)-(Number(l.gas_cost)||0);   /* 返済に当てる額＝徴収費用−ガソリン費用 */
 const canEditLog=l=>l.created_by===state.user||isAdmin();
+const isFuture=l=>l.trip_date>ymd(new Date());
+const hasMoney=l=>(Number(l.fee_per_person)||0)>0||(Number(l.gas_cost)||0)>0;
+const logStatus=l=>isFuture(l)?["予定","teal"]:hasMoney(l)?["精算済み",""]:["費用が未入力","red"];
 const wday=s=>"日月火水木金土"[dateOf(s).getDay()];
-function vLog(){
-  if(state.logDraft)return vLogForm();
+function vMoney(){
   const total=Number(state.settings.repay_total)||0;
   const paid=state.logs.reduce((s,l)=>s+logRepay(l),0);
   const rest=total-paid;const pct=total>0?Math.max(0,Math.min(100,paid/total*100)):0;
@@ -378,30 +386,33 @@ function vLog(){
     ${total>0?`<div style="text-align:right"><div class="k">残り</div><div class="v ${rest<=0?"done":""}">${rest<=0?"完済！":yen(rest)}</div></div>`:""}</div>
     ${total>0?`<div class="repay-track"><div class="fill" style="width:${pct}%"></div></div><div class="muted">返済の総額 ${yen(total)}（${Math.floor(pct)}%）</div>`
      :`<div class="muted" style="margin-top:6px">${isAdmin()?"マイページの管理者メニューで返済の総額を設定すると、残りの額が表示されます":"返済の総額が設定されると、残りの額が表示されます"}</div>`}</div>`;
-  return `<section class="sec"><h2>釣り日記</h2>${summary}
-  <button class="btn primary" style="margin:14px 0 18px" data-act="newLog">＋ 日記を書く</button>
-  ${state.logs.length?state.logs.map(logCard).join(""):`<div class="card empty">まだ日記がありません</div>`}</section>`;
+  const past=state.logs.filter(l=>!isFuture(l));
+  return `<section class="sec">${summary}
+  <button class="btn primary" style="margin:14px 0 18px" data-act="newLog">＋ 予定・費用を登録</button>
+  ${past.length?past.map(logCard).join(""):`<div class="card empty">まだ記録がありません</div>`}</section>`;
 }
-function logCard(l){
+function logCard(l,opt={}){
   const names=(l.participants||[]).map(id=>`<span class="tag">${esc(nameOf(id))}</span>`).join("")+(l.guest_count>0?`<span class="tag teal">ゲスト ${esc(l.guest_count)}人</span>`:"");
   const rep=logRepay(l);const t=tideName(dateOf(l.trip_date));
   const catches=state.posts.filter(p=>p.date===l.trip_date);
-  return `<article class="card logcard"><div class="row"><b>${esc(l.trip_date.replace(/-/g,"/"))}（${wday(l.trip_date)}）</b><span class="tag ${t==="大潮"?"red":"teal"}">${t}</span></div>
+  const[st,stc]=logStatus(l);const plan=isFuture(l);
+  return `<article class="card logcard"><div class="row"><b>${esc(l.trip_date.replace(/-/g,"/"))}（${wday(l.trip_date)}）</b><span><span class="tag ${stc}">${st}</span> <span class="tag ${t==="大潮"?"red":"teal"}">${t}</span></span></div>
    ${l.spot_name?`<div class="muted">${esc(l.spot_name)}</div>`:""}
-   <div class="tags" style="margin-top:8px">${names}</div>
-   <table class="money"><tr><td>徴収費用</td><td>${yen(l.fee_per_person)} × ${logPeople(l)}人</td><td>${yen(logTotal(l))}</td></tr>
+   <div class="muted" style="margin-top:8px;font-size:12px">${plan?"参加予定":"参加者"}（${logPeople(l)}人）</div><div class="tags" style="margin-top:2px">${names}</div>
+   ${plan&&!hasMoney(l)?"":`<table class="money"><tr><td>徴収費用</td><td>${yen(l.fee_per_person)} × ${logPeople(l)}人</td><td>${yen(logTotal(l))}</td></tr>
    <tr><td>ガソリン費用</td><td></td><td>− ${yen(l.gas_cost)}</td></tr>
-   <tr class="sum"><td>返済に当てる額</td><td></td><td class="${rep<0?"minus":""}">${signedYen(rep)}</td></tr></table>
+   <tr class="sum"><td>返済に当てる額</td><td></td><td class="${rep<0?"minus":""}">${signedYen(rep)}</td></tr></table>`}
    ${l.memo?`<p class="memo">${esc(l.memo)}</p>`:""}
-   ${catches.length?`<div class="log-catches"><div class="muted">この日の釣果</div>${catches.map(p=>`<div>${esc(nameOf(p.user))}さん　${p.items.map(itemLine).join("、")}</div>`).join("")}</div>`:""}
+   ${!opt.noCatches&&catches.length?`<div class="log-catches"><div class="muted">この日の釣果</div>${catches.map(p=>`<div>${esc(nameOf(p.user))}さん　${p.items.map(itemLine).join("、")}</div>`).join("")}</div>`:""}
    <div class="muted small">記入：${esc(nameOf(l.created_by))}さん</div>
    ${canEditLog(l)?`<div class="post-foot"><button class="link edit" data-act="editLog" data-id="${esc(l.id)}">編集</button><button class="link" data-act="delLog" data-id="${esc(l.id)}">削除</button></div>`:""}</article>`;
 }
-function newLogDraft(){return{id:null,trip_date:ymd(new Date()),spot_name:"",participants:[state.user],guest_count:0,fee_per_person:"",gas_cost:"",memo:""}}
+function newLogDraft(date){return{id:null,trip_date:date||ymd(new Date()),spot_name:"",participants:[state.user],guest_count:0,fee_per_person:"",gas_cost:"",memo:""}}
 function vLogForm(){
   const d=state.logDraft;
   const spots=[...new Set(state.posts.map(p=>p.spot).concat(state.logs.map(l=>l.spot_name)).filter(Boolean))];
-  return `<section class="sec"><h2>${d.id?"日記を編集":"日記を書く"}</h2>
+  return `<section class="sec"><h2>${d.id?"予定・費用を編集":"予定・費用を登録"}</h2>
+  <p class="note" style="margin:0 0 14px">これから行く日は「予定」として登録されます。行った後に、費用を入力してください。</p>
   <div class="grid2"><div class="field"><label for="l-date">日付</label><input id="l-date" type="date" value="${esc(d.trip_date)}"></div>
   <div class="field"><label for="l-spot">釣り場</label><input id="l-spot" list="lspots" value="${esc(d.spot_name||"")}" placeholder="〇〇港"><datalist id="lspots">${spots.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div></div>
   <div class="field"><label>参加者（タップで選択）</label><div class="pick">${state.profiles.map(p=>`<label class="pick-item"><input type="checkbox" name="l-mem" value="${p.id}" ${d.participants.includes(p.id)?"checked":""}><span>${esc(p.display_name)}</span></label>`).join("")}</div></div>
@@ -409,7 +420,7 @@ function vLogForm(){
   <div class="grid2"><div class="field"><label for="l-fee">1人あたりの徴収額（円）</label><input id="l-fee" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.fee_per_person)}" placeholder="3000"></div>
   <div class="field"><label for="l-gas">ガソリン費用（円）</label><input id="l-gas" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.gas_cost)}" placeholder="8000"></div></div>
   <div class="card calc" id="l-calc"></div>
-  <div class="field"><label for="l-memo">日記・メモ</label><textarea id="l-memo" placeholder="朝から北風。10時頃に時合いがきた">${esc(d.memo||"")}</textarea></div>
+  <div class="field"><label for="l-memo">メモ</label><textarea id="l-memo" placeholder="集合5時半、〇〇港の駐車場">${esc(d.memo||"")}</textarea></div>
   <div id="formErr" class="err" style="margin-bottom:10px"></div>
   <button class="btn primary" data-act="saveLog" ${state.busy?"disabled":""}>${state.busy?"保存中…":"保存する"}</button>
   <button class="btn" style="width:100%;margin-top:10px" data-act="cancelLog">やめる</button></section>`;
@@ -444,20 +455,28 @@ function vRev(){
   ${ps.map(postCard).join("")}</section>`;
 }
 function vCal(){
+  if(state.logDraft)return vLogForm();
+  const tabs=`<div class="seg" role="tablist"><button class="${state.calMode!=="money"?"on":""}" data-cmode="cal">カレンダー</button><button class="${state.calMode==="money"?"on":""}" data-cmode="money">費用清算</button></div>`;
+  if(state.calMode==="money")return tabs+vMoney();
   const c=state.cal;const first=new Date(c.y,c.m,1);const n=new Date(c.y,c.m+1,0).getDate();const t0=ymd(new Date());
-  const dates=new Set(state.posts.map(p=>p.date));let cells="";
+  const catchDays=new Set(state.posts.map(p=>p.date));const logDays=new Set(state.logs.map(l=>l.trip_date));let cells="";
   for(let i=0;i<first.getDay();i++)cells+=`<div class="day blank"></div>`;
   for(let d=1;d<=n;d++){const dt=new Date(c.y,c.m,d);const k=ymd(dt);const t=tideName(dt);
-    cells+=`<button class="day ${k===t0?"today":""} ${state.calSel===k?"sel":""}" data-day="${k}" aria-label="${c.m+1}月${d}日 ${t}${dates.has(k)?" 釣行あり":""}">
-    <span class="d">${d}</span><span class="t ${t==="大潮"?"big":t==="中潮"?"mid":""}">${t}</span>${dates.has(k)?`<span class="dot"></span>`:""}</button>`;}
+    const mk=(logDays.has(k)?`<span class="mk ${k>t0?"plan":"trip"}"></span>`:"")+(catchDays.has(k)?`<span class="mk fish"></span>`:"");
+    cells+=`<button class="day ${k===t0?"today":""} ${state.calSel===k?"sel":""}" data-day="${k}" aria-label="${c.m+1}月${d}日 ${t}${logDays.has(k)?(k>t0?" 釣行予定あり":" 釣行記録あり"):""}${catchDays.has(k)?" 釣果あり":""}">
+    <span class="d">${d}</span><span class="t ${t==="大潮"?"big":t==="中潮"?"mid":""}">${t}</span>${mk?`<span class="mks">${mk}</span>`:""}</button>`;}
   let detail="";
-  if(state.calSel){const dt=dateOf(state.calSel);const ps=state.posts.filter(p=>p.date===state.calSel);
-    detail=`<div class="card tidebox" style="margin-top:14px"><div class="row"><b>${dt.getMonth()+1}月${dt.getDate()}日</b><span class="tag ${tideName(dt)==="大潮"?"red":"teal"}">${tideName(dt)}</span></div>
-    <p class="muted" style="margin:8px 0">満潮・干潮の時刻は今後追加予定です</p>
-    ${ps.length?ps.map(p=>`<div style="padding:8px 0;border-top:1px solid var(--line)"><b>${esc(nameOf(p.user))}さん</b>　${p.items.map(itemLine).join("、")}</div>`).join(""):`<p class="muted" style="margin:0">この日の釣行記録はありません</p>`}</div>`;}
-  return `<section class="sec"><div class="monthbar"><button class="icon-btn" data-act="calPrev" aria-label="前の月">‹</button><b>${c.y}年${c.m+1}月</b><button class="icon-btn" data-act="calNext" aria-label="次の月">›</button></div>
+  if(state.calSel){const dt=dateOf(state.calSel);const ps=state.posts.filter(p=>p.date===state.calSel);const ls=state.logs.filter(l=>l.trip_date===state.calSel);
+    detail=`<div class="card tidebox" style="margin-top:14px"><div class="row"><b>${dt.getMonth()+1}月${dt.getDate()}日（${wday(state.calSel)}）</b><span class="tag ${tideName(dt)==="大潮"?"red":"teal"}">${tideName(dt)}</span></div>
+    <p class="muted" style="margin:6px 0 10px">満潮・干潮の時刻は今後追加予定です</p>
+    <button class="btn add" style="margin-bottom:10px" data-act="newLog" data-date="${state.calSel}">＋ この日の予定・費用を登録</button>
+    ${ps.length?`<div class="day-catches"><div class="muted">この日の釣果</div>${ps.map(p=>`<div style="padding:4px 0"><b>${esc(nameOf(p.user))}さん</b>　${p.items.map(itemLine).join("、")}</div>`).join("")}</div>`:""}
+    ${!ls.length&&!ps.length?`<p class="muted" style="margin:0">この日の予定・記録はありません</p>`:""}</div>
+    ${ls.map(l=>logCard(l,{noCatches:true})).join("")}`;}
+  return tabs+`<section class="sec"><div class="monthbar"><button class="icon-btn" data-act="calPrev" aria-label="前の月">‹</button><b>${c.y}年${c.m+1}月</b><button class="icon-btn" data-act="calNext" aria-label="次の月">›</button></div>
   <div class="cal">${["日","月","火","水","木","金","土"].map((w,i)=>`<div class="dow ${i===0?"sun":""}">${w}</div>`).join("")}${cells}</div>
-  <div class="legend"><span><span style="color:var(--tai);font-weight:700">大潮</span>・<span style="color:var(--tide)">中潮</span>・小潮など</span><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tai)"></span> 釣行した日</span></div>
+  <div class="legend"><span><span style="color:var(--tai);font-weight:700">大潮</span>・<span style="color:var(--tide)">中潮</span>・小潮など</span>
+  <span><span class="mk plan"></span> 釣行予定</span><span><span class="mk trip"></span> 釣行記録</span><span><span class="mk fish"></span> 釣果あり</span></div>
   ${detail}</section>`;
 }
 function vMe(){
@@ -550,16 +569,16 @@ function render(){
   if(!state.user){root.innerHTML=vLogin();return}
   if(state.me?.must_change_password){root.innerHTML=vFirstPw();return}
   if(state.view==="chat")markRead();
-  const v={home:vHome,chat:vChat,post:vPost,log:vLog,rank:vRank,rev:vRank,cal:vCal,me:vMe}[state.view]||vHome;
+  const v={home:vHome,chat:vChat,post:vPost,log:vCal,rank:vRank,rev:vRank,cal:vCal,me:vMe}[state.view]||vHome;
   root.innerHTML=`<div class="app">${header()}${v()}</div>${nav()}`;
-  if(state.view==="log"&&state.logDraft)updateLogCalc();
+  if(state.view==="cal"&&state.logDraft)updateLogCalc();
   if(state.view==="chat"){const bar=root.querySelector(".chatbar"),nv=root.querySelector(".nav");bar.style.bottom=nv.offsetHeight+"px";
     grow(document.getElementById("chat-text"));requestAnimationFrame(()=>window.scrollTo(0,document.documentElement.scrollHeight))}
 }
 /* 入力中の画面をこわさずに、新しいデータを反映する */
 function refresh(){
   if(!state.user||state.booting||state.me?.must_change_password)return;
-  if(state.view==="post"||state.view==="me"||(state.view==="log"&&state.logDraft)){const n=document.querySelector(".nav");if(n)n.outerHTML=nav();return}
+  if(state.view==="post"||state.view==="me"||(state.view==="cal"&&state.logDraft)){const n=document.querySelector(".nav");if(n)n.outerHTML=nav();return}
   const ae=document.activeElement;const keep=ae&&ae.id==="chat-text"?[ae.selectionStart,ae.selectionEnd]:null;
   render();
   if(keep){const t=document.getElementById("chat-text");if(t){t.focus();t.setSelectionRange(...keep)}}
@@ -687,12 +706,14 @@ async function saveLog(){
     const{error}=d.id?await sb.from("fishing_logs").update({...row,updated_at:new Date().toISOString()}).eq("id",d.id)
                      :await sb.from("fishing_logs").insert({...row,created_by:state.user});
     if(error)throw error;
-    await loadLogs();state.logDraft=null;toast(d.id?"日記を更新しました":"日記を保存しました");
+    await loadLogs();state.logDraft=null;
+    if(state.calMode!=="money"){const dt=dateOf(d.trip_date);state.cal={y:dt.getFullYear(),m:dt.getMonth()};state.calSel=d.trip_date}
+    toast(isFuture({trip_date:d.trip_date})?"予定を登録しました":"保存しました");
   }catch(e){toast("保存できませんでした："+errMsg(e))}
   state.busy=false;render();window.scrollTo(0,0);
 }
 async function deleteLog(id){
-  const l=state.logs.find(x=>x.id===id);if(!l||!confirm(`${l.trip_date.replace(/-/g,"/")}の日記を削除しますか？\n（元に戻せません）`))return;
+  const l=state.logs.find(x=>x.id===id);if(!l||!confirm(`${l.trip_date.replace(/-/g,"/")}の予定・費用を削除しますか？\n（元に戻せません）`))return;
   const{error}=await sb.from("fishing_logs").delete().eq("id",id);
   if(error){toast("削除できませんでした："+errMsg(error));return}
   state.logs=state.logs.filter(x=>x.id!==id);toast("削除しました");render();
@@ -743,7 +764,8 @@ async function login(){
 /* ---------- 操作 ---------- */
 document.addEventListener("click",async e=>{
   const go=e.target.closest("[data-go]");
-  if(go){if(state.view==="post")readDraft();if(state.view==="log")readLogDraft();state.view=go.dataset.go;render();window.scrollTo(0,0);return}
+  if(go){if(state.view==="post")readDraft();if(state.logDraft)readLogDraft();state.view=go.dataset.go;render();window.scrollTo(0,0);return}
+  const cm=e.target.closest("[data-cmode]");if(cm){state.calMode=cm.dataset.cmode;render();return}
   const rm=e.target.closest("[data-rmode]");if(rm){state.rankMode=rm.dataset.rmode;render();return}
   const rc=e.target.closest("[data-rcat]");if(rc){state.rankCat=rc.dataset.rcat;render();return}
   const md=e.target.closest("[data-mode]");if(md){readDraft();state.draft.mode=md.dataset.mode;render();return}
@@ -753,13 +775,13 @@ document.addEventListener("click",async e=>{
   if(act==="logout"){await sb.auth.signOut();sb.removeAllChannels();state.user=null;state.me=null;state.draft=null;state.posts=[];state.chat=[];state.logs=[];state.settings={};state.logDraft=null;render();return}
   if(act==="revPrev"||act==="revNext"){const d=new Date(state.rev.y,state.rev.m+(act==="revNext"?1:-1),1);state.rev={y:d.getFullYear(),m:d.getMonth()};render();return}
   if(act==="calPrev"||act==="calNext"){const d=new Date(state.cal.y,state.cal.m+(act==="calNext"?1:-1),1);state.cal={y:d.getFullYear(),m:d.getMonth()};state.calSel=null;render();return}
-  if(act==="inc"||act==="dec"){const inp=document.getElementById(a.dataset.t);inp.value=Math.max(Number(inp.min)||0,(parseInt(inp.value)||0)+(act==="inc"?1:-1));const fe=document.getElementById("formErr");if(fe)fe.textContent="";if(state.view==="log")updateLogCalc();return}
+  if(act==="inc"||act==="dec"){const inp=document.getElementById(a.dataset.t);inp.value=Math.max(Number(inp.min)||0,(parseInt(inp.value)||0)+(act==="inc"?1:-1));const fe=document.getElementById("formErr");if(fe)fe.textContent="";if(state.logDraft)updateLogCalc();return}
   if(act==="addItem"){readDraft();state.draft.items.push({species:"",size:"",count:1});render();return}
   if(act==="delItem"){readDraft();state.draft.items.splice(Number(a.dataset.i),1);render();return}
   if(act==="submit"){if(!state.busy)submitPost();return}
   if(act==="delPost"){deletePost(a.dataset.id);return}
   if(act==="send"){sendChat();return}
-  if(act==="newLog"){state.logDraft=newLogDraft();render();window.scrollTo(0,0);return}
+  if(act==="newLog"){state.logDraft=newLogDraft(a.dataset.date);render();window.scrollTo(0,0);return}
   if(act==="editLog"){const l=state.logs.find(x=>x.id===a.dataset.id);if(!l)return;
     state.logDraft={...l,participants:[...(l.participants||[])]};render();window.scrollTo(0,0);return}
   if(act==="cancelLog"){state.logDraft=null;render();window.scrollTo(0,0);return}
@@ -805,7 +827,7 @@ document.addEventListener("change",async e=>{
     catch(err){toast("この写真は読み込めませんでした。別の写真を選んでください")}}
 });
 document.addEventListener("input",e=>{if(e.target.id==="chat-text"){state.chatDraft=e.target.value;grow(e.target);return}
-  if(state.view==="log"&&state.logDraft&&/^l-/.test(e.target.id||e.target.name||""))updateLogCalc();
+  if(state.logDraft&&/^l-/.test(e.target.id||e.target.name||""))updateLogCalc();
   if(e.target.closest(".field")){const er=document.getElementById("formErr")||document.getElementById("lerr");if(er)er.textContent=""}});
 document.addEventListener("keydown",e=>{
   if(e.key!=="Enter")return;
