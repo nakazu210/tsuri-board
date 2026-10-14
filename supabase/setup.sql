@@ -115,9 +115,10 @@ begin
     raise exception '魚種を入力してください';
   end if;
 
-  insert into public.posts (user_id, posted_by, kind, caught_on, spot_name, memo, photo_path)
+  insert into public.posts (user_id, posted_by, kind, caught_on, spot_name, memo, photo_path, ai_result)
   values ((p->>'user_id')::uuid, auth.uid(), k, (p->>'caught_on')::date,
-          nullif(trim(p->>'spot_name'), ''), nullif(trim(p->>'memo'), ''), nullif(p->>'photo_path', ''))
+          nullif(trim(p->>'spot_name'), ''), nullif(trim(p->>'memo'), ''), nullif(p->>'photo_path', ''),
+          nullif(p->'ai_result', 'null'::jsonb))
   returning id into pid;
 
   for it in select * from jsonb_array_elements(p->'items') loop
@@ -276,3 +277,7 @@ create policy "settings_select" on public.app_settings for select to authenticat
 drop policy if exists "settings_admin" on public.app_settings;
 create policy "settings_admin" on public.app_settings for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+
+-- ---------- 徴収額をメンバーとゲストで分ける（メンバー2,000円・ゲスト5,000円） ----------
+alter table public.fishing_logs alter column fee_per_person set default 2000;
+alter table public.fishing_logs add column if not exists guest_fee int not null default 5000 check (guest_fee >= 0);

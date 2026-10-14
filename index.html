@@ -322,7 +322,7 @@ function vHome(){
   return `<section class="sec"><h2>${y}年の首位</h2><div class="leaders">${lead}</div>${ikaBox}</section>
   <section class="sec"><h2>みんなの釣果</h2>${list.length?list.map(postCard).join(""):`<div class="card empty">最初の釣果をUPしましょう</div>`}</section>`;
 }
-function newDraft(){return{photo:null,mode:"fish",user:state.user,date:ymd(new Date()),spot:"",items:[{species:"",size:"",count:1}],ikaCount:1,memo:""}}
+function newDraft(){return{photo:null,mode:"fish",user:state.user,date:ymd(new Date()),spot:"",items:[{species:"",size:"",count:1}],ikaCount:1,memo:"",aiMsg:"",aiBusy:false,aiResult:null}}
 function stepper(id,val,big,min=1){
   return `<div class="stepper ${big?"big":""}"><button type="button" data-act="dec" data-t="${id}" aria-label="1減らす">−</button><input id="${id}" type="number" inputmode="numeric" min="${min}" step="1" value="${esc(val)}"><button type="button" data-act="inc" data-t="${id}" aria-label="1増やす">＋</button></div>`;
 }
@@ -344,6 +344,8 @@ function vPost(){
   ${photo}
   <input id="ph-cam" type="file" accept="image/*" capture="environment" hidden><input id="ph-lib" type="file" accept="image/*" hidden>
   ${ika?`<p class="note">白イカは大きさではなく<b>杯数</b>で競う別部門です。釣果数・魚種数のランキングには含まれません。</p>`:""}
+  <div style="margin:10px 0 4px"><button class="btn ai" data-act="ai" ${d.aiBusy?"disabled":""}>${d.aiBusy?"AIが判定中…":d.photo?"AIでもう一度判定":"AIで魚種・サイズ・匹数を判定"}</button>
+  <div class="muted" style="margin-top:6px">${d.aiMsg||(d.photo?"":"写真を撮ると、AIが魚種・サイズ・匹数を自動で入力します")}</div></div>
   <div class="grid2" style="margin-top:14px"><div class="field"><label for="f-user">釣った人</label><select id="f-user">${state.profiles.map(p=>`<option value="${p.id}" ${d.user===p.id?"selected":""}>${esc(p.display_name)}${p.id===state.user?"（自分）":""}</option>`).join("")}</select></div>
   <div class="field"><label for="f-date">釣った日</label><input id="f-date" type="date" value="${esc(d.date)}"></div></div>
   ${d.user!==state.user?`<p class="muted" style="margin:-6px 0 14px">${esc(nameOf(d.user))}さんの代わりにUPします（${esc(nameOf(d.user))}さんの記録になります）</p>`:""}
@@ -371,11 +373,15 @@ function vRank(){
 const yen=n=>(Number(n)||0).toLocaleString("ja-JP")+"円";
 const signedYen=n=>n<0?"− "+yen(-n):yen(n);
 const logPeople=l=>(l.participants||[]).length+(Number(l.guest_count)||0);
-const logTotal=l=>logPeople(l)*(Number(l.fee_per_person)||0);
+const MEMBER_FEE=2000,GUEST_FEE=5000;   /* 徴収額の初期値：メンバー2,000円・ゲスト5,000円 */
+const memberCount=l=>(l.participants||[]).length;
+const memberTotal=l=>memberCount(l)*(Number(l.fee_per_person)||0);
+const guestTotal=l=>(Number(l.guest_count)||0)*(Number(l.guest_fee??GUEST_FEE)||0);
+const logTotal=l=>memberTotal(l)+guestTotal(l);
 const logRepay=l=>logTotal(l)-(Number(l.gas_cost)||0);   /* 返済に当てる額＝徴収費用−ガソリン費用 */
 const canEditLog=l=>l.created_by===state.user||isAdmin();
 const isFuture=l=>l.trip_date>ymd(new Date());
-const hasMoney=l=>(Number(l.fee_per_person)||0)>0||(Number(l.gas_cost)||0)>0;
+const hasMoney=l=>(Number(l.gas_cost)||0)>0;   /* ガソリン費用が入っていれば精算済みとみなす */
 const logStatus=l=>isFuture(l)?["予定","teal"]:hasMoney(l)?["精算済み",""]:["費用が未入力","red"];
 const wday=s=>"日月火水木金土"[dateOf(s).getDay()];
 function vMoney(){
@@ -399,15 +405,17 @@ function logCard(l,opt={}){
   return `<article class="card logcard"><div class="row"><b>${esc(l.trip_date.replace(/-/g,"/"))}（${wday(l.trip_date)}）</b><span><span class="tag ${stc}">${st}</span> <span class="tag ${t==="大潮"?"red":"teal"}">${t}</span></span></div>
    ${l.spot_name?`<div class="muted">${esc(l.spot_name)}</div>`:""}
    <div class="muted" style="margin-top:8px;font-size:12px">${plan?"参加予定":"参加者"}（${logPeople(l)}人）</div><div class="tags" style="margin-top:2px">${names}</div>
-   ${plan&&!hasMoney(l)?"":`<table class="money"><tr><td>徴収費用</td><td>${yen(l.fee_per_person)} × ${logPeople(l)}人</td><td>${yen(logTotal(l))}</td></tr>
-   <tr><td>ガソリン費用</td><td></td><td>− ${yen(l.gas_cost)}</td></tr>
-   <tr class="sum"><td>返済に当てる額</td><td></td><td class="${rep<0?"minus":""}">${signedYen(rep)}</td></tr></table>`}
+   <table class="money"><tr><td>メンバー</td><td>${yen(l.fee_per_person)} × ${memberCount(l)}人</td><td>${yen(memberTotal(l))}</td></tr>
+   ${l.guest_count>0?`<tr><td>ゲスト</td><td>${yen(l.guest_fee??GUEST_FEE)} × ${esc(l.guest_count)}人</td><td>${yen(guestTotal(l))}</td></tr>`:""}
+   <tr><td>徴収費用の合計</td><td></td><td>${yen(logTotal(l))}</td></tr>
+   <tr><td>ガソリン費用</td><td></td><td>${plan&&!hasMoney(l)?"未入力":"− "+yen(l.gas_cost)}</td></tr>
+   <tr class="sum"><td>返済に当てる額</td><td></td><td class="${rep<0?"minus":""}">${signedYen(rep)}${plan?"（見込み）":""}</td></tr></table>
    ${l.memo?`<p class="memo">${esc(l.memo)}</p>`:""}
    ${!opt.noCatches&&catches.length?`<div class="log-catches"><div class="muted">この日の釣果</div>${catches.map(p=>`<div>${esc(nameOf(p.user))}さん　${p.items.map(itemLine).join("、")}</div>`).join("")}</div>`:""}
    <div class="muted small">記入：${esc(nameOf(l.created_by))}さん</div>
    ${canEditLog(l)?`<div class="post-foot"><button class="link edit" data-act="editLog" data-id="${esc(l.id)}">編集</button><button class="link" data-act="delLog" data-id="${esc(l.id)}">削除</button></div>`:""}</article>`;
 }
-function newLogDraft(date){return{id:null,trip_date:date||ymd(new Date()),spot_name:"",participants:[state.user],guest_count:0,fee_per_person:"",gas_cost:"",memo:""}}
+function newLogDraft(date){return{id:null,trip_date:date||ymd(new Date()),spot_name:"",participants:[state.user],guest_count:0,fee_per_person:MEMBER_FEE,guest_fee:GUEST_FEE,gas_cost:"",memo:""}}
 function vLogForm(){
   const d=state.logDraft;
   const spots=[...new Set(state.posts.map(p=>p.spot).concat(state.logs.map(l=>l.spot_name)).filter(Boolean))];
@@ -417,8 +425,9 @@ function vLogForm(){
   <div class="field"><label for="l-spot">釣り場</label><input id="l-spot" list="lspots" value="${esc(d.spot_name||"")}" placeholder="〇〇港"><datalist id="lspots">${spots.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div></div>
   <div class="field"><label>参加者（タップで選択）</label><div class="pick">${state.profiles.map(p=>`<label class="pick-item"><input type="checkbox" name="l-mem" value="${p.id}" ${d.participants.includes(p.id)?"checked":""}><span>${esc(p.display_name)}</span></label>`).join("")}</div></div>
   <div class="field"><label for="l-guest">ゲスト（メンバー以外）の人数</label>${stepper("l-guest",d.guest_count,false,0)}</div>
-  <div class="grid2"><div class="field"><label for="l-fee">1人あたりの徴収額（円）</label><input id="l-fee" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.fee_per_person)}" placeholder="3000"></div>
-  <div class="field"><label for="l-gas">ガソリン費用（円）</label><input id="l-gas" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.gas_cost)}" placeholder="8000"></div></div>
+  <div class="grid2"><div class="field"><label for="l-fee">メンバーの徴収額（1人・円）</label><input id="l-fee" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.fee_per_person)}" placeholder="2000"></div>
+  <div class="field"><label for="l-gfee">ゲストの徴収額（1人・円）</label><input id="l-gfee" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.guest_fee??GUEST_FEE)}" placeholder="5000"></div></div>
+  <div class="field"><label for="l-gas">ガソリン費用（円）　※行った後に入力</label><input id="l-gas" type="number" inputmode="numeric" min="0" step="100" value="${esc(d.gas_cost)}" placeholder="8000"></div>
   <div class="card calc" id="l-calc"></div>
   <div class="field"><label for="l-memo">メモ</label><textarea id="l-memo" placeholder="集合5時半、〇〇港の駐車場">${esc(d.memo||"")}</textarea></div>
   <div id="formErr" class="err" style="margin-bottom:10px"></div>
@@ -429,13 +438,15 @@ function readLogDraft(){
   const g=id=>document.getElementById(id);const d=state.logDraft;if(!d||!g("l-date"))return;
   d.trip_date=g("l-date").value;d.spot_name=g("l-spot").value.trim();
   d.participants=[...document.querySelectorAll('input[name="l-mem"]:checked')].map(x=>x.value);
-  d.guest_count=g("l-guest").value;d.fee_per_person=g("l-fee").value;d.gas_cost=g("l-gas").value;d.memo=g("l-memo").value.trim();
+  d.guest_count=g("l-guest").value;d.fee_per_person=g("l-fee").value;d.guest_fee=g("l-gfee").value;d.gas_cost=g("l-gas").value;d.memo=g("l-memo").value.trim();
 }
 /* 入力に合わせて、合計と返済に当てる額をその場で計算して表示する */
 function updateLogCalc(){
   const el=document.getElementById("l-calc");if(!el)return;readLogDraft();const d=state.logDraft;
-  const l={participants:d.participants,guest_count:Number(d.guest_count)||0,fee_per_person:Number(d.fee_per_person)||0,gas_cost:Number(d.gas_cost)||0};const r=logRepay(l);
-  el.innerHTML=`<div class="row"><span>参加人数</span><b>${logPeople(l)}人</b></div><div class="row"><span>徴収費用の合計（${yen(l.fee_per_person)} × ${logPeople(l)}人）</span><b>${yen(logTotal(l))}</b></div>
+  const l={participants:d.participants,guest_count:Number(d.guest_count)||0,fee_per_person:Number(d.fee_per_person)||0,guest_fee:Number(d.guest_fee)||0,gas_cost:Number(d.gas_cost)||0};const r=logRepay(l);
+  el.innerHTML=`<div class="row"><span>メンバー（${yen(l.fee_per_person)} × ${memberCount(l)}人）</span><b>${yen(memberTotal(l))}</b></div>
+  <div class="row"><span>ゲスト（${yen(l.guest_fee)} × ${l.guest_count}人）</span><b>${yen(guestTotal(l))}</b></div>
+  <div class="row"><span>徴収費用の合計（${logPeople(l)}人）</span><b>${yen(logTotal(l))}</b></div>
   <div class="row"><span>ガソリン費用</span><b>− ${yen(l.gas_cost)}</b></div><div class="row total"><span>返済に当てる額</span><b class="${r<0?"minus":""}">${signedYen(r)}</b></div>`;
 }
 function bars(list,unit,cls){
@@ -667,6 +678,28 @@ function subscribe(){
     refresh();
   }).subscribe();
 }
+/* AI判定：写真を送って、魚種・サイズ・匹数を入力欄に入れる（入力欄はあとから直せる） */
+async function runAI(){
+  const d=state.draft;
+  if(!d.photo){d.aiMsg='<span class="err">先に写真を撮ってください</span>';render();return}
+  readDraft();d.aiBusy=true;d.aiMsg="";render();
+  try{
+    const{data,error}=await sb.functions.invoke("estimate-fish",{body:{image:d.photo}});
+    if(error){let msg=error.message;try{const j=await error.context.json();msg=j.error||msg}catch(_){}throw new Error(msg)}
+    if(data?.error)throw new Error(data.error);
+    if(state.draft!==d)return;
+    if(state.view==="post")readDraft();
+    d.aiResult=data;const items=data.items||[];
+    if(!items.length){d.aiMsg="AIでは魚を見つけられませんでした。魚種を入力してください"}
+    else{
+      const ika=items.filter(it=>isIka(it.species)),fish=items.filter(it=>!isIka(it.species));
+      if(ika.length&&!fish.length){d.mode="ika";d.ikaCount=ika.reduce((n,it)=>n+it.count,0)}
+      else{d.mode="fish";d.items=fish.map(it=>({species:it.species,size:it.size_cm??"",count:it.count}))}
+      d.aiMsg=`AI判定：${items.map(it=>`${esc(it.species)} ${it.count}${isIka(it.species)?"杯":"匹"}${it.size_cm&&!isIka(it.species)?`（約${esc(it.size_cm)}cm${data.has_measure?"・メジャーから読み取り":""}）`:""}`).join("、")}${data.confidence<0.7?"（自信は低めです）":""}。違っていたら直してください`;
+    }
+  }catch(e){d.aiMsg=`<span class="err">${esc(errMsg(e))}</span>`}
+  d.aiBusy=false;if(state.view==="post"&&state.draft===d)render();
+}
 async function submitPost(){
   readDraft();const d=state.draft,err=document.getElementById("formErr");let items;
   if(!d.date){err.textContent="釣った日を入力してください";return}
@@ -683,7 +716,7 @@ async function submitPost(){
   state.busy=true;render();
   try{
     const photoPath=d.photo?await uploadPhoto(d.photo,"posts"):null;
-    const{error}=await sb.rpc("create_post",{p:{user_id:d.user,kind:d.mode,caught_on:d.date,spot_name:d.spot,memo:d.memo,photo_path:photoPath,items}});
+    const{error}=await sb.rpc("create_post",{p:{user_id:d.user,kind:d.mode,caught_on:d.date,spot_name:d.spot,memo:d.memo,photo_path:photoPath,items,ai_result:d.aiResult||null}});
     if(error)throw error;
     await loadPosts();
     const who=d.user!==state.user?`${nameOf(d.user)}さんの釣果として`:"";
@@ -694,13 +727,14 @@ async function submitPost(){
 async function saveLog(){
   readLogDraft();const d=state.logDraft,err=document.getElementById("formErr");
   const num=v=>v===""||v==null?0:Number(v);
-  const fee=num(d.fee_per_person),gas=num(d.gas_cost),guest=num(d.guest_count);
+  const fee=num(d.fee_per_person),gfee=num(d.guest_fee),gas=num(d.gas_cost),guest=num(d.guest_count);
   if(!d.trip_date){err.textContent="日付を入力してください";return}
   if(d.participants.length+guest<1){err.textContent="参加者を1人以上選んでください";return}
   if(!Number.isInteger(fee)||fee<0){err.textContent="徴収額は0以上の整数（円）で入力してください";return}
+  if(!Number.isInteger(gfee)||gfee<0){err.textContent="ゲストの徴収額は0以上の整数（円）で入力してください";return}
   if(!Number.isInteger(gas)||gas<0){err.textContent="ガソリン費用は0以上の整数（円）で入力してください";return}
   if(!Number.isInteger(guest)||guest<0){err.textContent="ゲストの人数は0以上で入力してください";return}
-  const row={trip_date:d.trip_date,spot_name:d.spot_name||null,participants:d.participants,guest_count:guest,fee_per_person:fee,gas_cost:gas,memo:d.memo||null};
+  const row={trip_date:d.trip_date,spot_name:d.spot_name||null,participants:d.participants,guest_count:guest,fee_per_person:fee,guest_fee:gfee,gas_cost:gas,memo:d.memo||null};
   state.busy=true;render();
   try{
     const{error}=d.id?await sb.from("fishing_logs").update({...row,updated_at:new Date().toISOString()}).eq("id",d.id)
@@ -781,6 +815,7 @@ document.addEventListener("click",async e=>{
   if(act==="submit"){if(!state.busy)submitPost();return}
   if(act==="delPost"){deletePost(a.dataset.id);return}
   if(act==="send"){sendChat();return}
+  if(act==="ai"){if(!state.draft.aiBusy)runAI();return}
   if(act==="newLog"){state.logDraft=newLogDraft(a.dataset.date);render();window.scrollTo(0,0);return}
   if(act==="editLog"){const l=state.logs.find(x=>x.id===a.dataset.id);if(!l)return;
     state.logDraft={...l,participants:[...(l.participants||[])]};render();window.scrollTo(0,0);return}
@@ -823,7 +858,7 @@ document.addEventListener("change",async e=>{
   if(e.target.id==="f-user"){readDraft();render();return}
   if(e.target.id==="chat-photo"&&e.target.files[0]){sendChatPhoto(e.target.files[0]);return}
   if((e.target.id==="ph-cam"||e.target.id==="ph-lib")&&e.target.files[0]){readDraft();
-    try{state.draft.photo=await shrink(e.target.files[0]);render()}
+    try{state.draft.photo=await shrink(e.target.files[0]);state.draft.aiMsg="";state.draft.aiResult=null;render();runAI()}
     catch(err){toast("この写真は読み込めませんでした。別の写真を選んでください")}}
 });
 document.addEventListener("input",e=>{if(e.target.id==="chat-text"){state.chatDraft=e.target.value;grow(e.target);return}
