@@ -281,3 +281,50 @@ create policy "settings_admin" on public.app_settings for all to authenticated
 -- ---------- 徴収額をメンバーとゲストで分ける（メンバー2,000円・ゲスト5,000円） ----------
 alter table public.fishing_logs alter column fee_per_person set default 2000;
 alter table public.fishing_logs add column if not exists guest_fee int not null default 5000 check (guest_fee >= 0);
+
+-- ---------- チャットのプッシュ通知 ----------
+-- 通知の届け先（スマホごと）
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade default auth.uid(),
+  endpoint text unique not null,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+revoke all on public.push_subscriptions from anon;
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "push_own" on public.push_subscriptions;
+create policy "push_own" on public.push_subscriptions for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- 新しいメッセージが入ったら、通知を送る機能（push-chat）を呼び出す
+-- 呼び出し用の合言葉は Vault（暗号化された保管場所）の push_hook_secret に保存（このファイルには書かない）
+create extension if not exists pg_net with schema extensions;
+
+create or replace function public.notify_chat_push() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  secret text;
+begin
+  if new.kind not in ('text','photo') then
+    return new;   -- 釣果のお知らせは通知しない
+  end if;
+  select decrypted_secret into secret from vault.decrypted_secrets where name = 'push_hook_secret';
+  if secret is null then
+    return new;
+  end if;
+  perform net.http_post(
+    url := 'https://eiirhhjitxpewvhxuwuc.supabase.co/functions/v1/push-chat',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-hook-secret', secret),
+    body := jsonb_build_object('message_id', new.id)
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists on_chat_message_push on public.chat_messages;
+create trigger on_chat_message_push
+  after insert on public.chat_messages
+  for each row execute function public.notify_chat_push();

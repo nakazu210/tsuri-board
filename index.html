@@ -200,6 +200,9 @@ h2{font-size:17px;margin:0 0 10px;font-weight:700}
 .calc .row{padding:3px 0;font-size:14px}
 .calc .total{border-top:1px solid var(--line);margin-top:4px;padding-top:8px;color:var(--sea)}
 .link.edit{color:var(--tide)}
+.push-hint{padding:12px 14px;margin-bottom:14px;background:var(--tideBg);border-color:transparent;color:var(--tide);font-size:14px}
+.push-hint-btns{display:flex;align-items:center;gap:12px;margin-top:8px}
+.push-hint-btns .btn.primary{width:auto;padding:8px 14px;font-size:14px}
 .mks{position:absolute;bottom:4px;display:flex;gap:3px}
 .mk{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle}
 .mk.fish{background:var(--tai)}
@@ -523,6 +526,8 @@ function vMe(){
   ${Object.entries(CATS).map(([k,[l]])=>`<tr><td>${l}部門</td><td style="text-align:right"><b>${rk(k)}</b></td></tr>`).join("")}</table></div>
   <h2>魚種別の自己ベスト</h2><div class="card" style="padding:4px 14px;margin-bottom:20px"><table class="best" style="width:100%;border-collapse:collapse">
   ${bestRows.length?bestRows.join(""):`<tr><td class="muted">まだ記録がありません</td></tr>`}</table></div>
+  <h2>チャットの通知</h2>
+  <div class="card" style="padding:14px;margin-bottom:20px">${pushPanel()}</div>
   <h2>パスワードの変更</h2>
   <div class="card" style="padding:14px;margin-bottom:20px">
     <div class="field"><label for="me-pw">新しいパスワード（6文字以上）</label><input id="me-pw" type="password" autocomplete="new-password"></div>
@@ -535,6 +540,54 @@ function vMe(){
 const hm=d=>d.getHours()+":"+pad(d.getMinutes());
 function dayLabel(d){const k=ymd(d),t=new Date(),y=new Date();y.setDate(y.getDate()-1);
   return k===ymd(t)?"今日":k===ymd(y)?"昨日":`${d.getFullYear()!==t.getFullYear()?d.getFullYear()+"年":""}${d.getMonth()+1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`}
+/* ---------- チャットのプッシュ通知とアイコンの数字 ---------- */
+const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
+const isStandalone=()=>window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+const pushSupported=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+const pushCanEnable=()=>pushSupported()&&(!isIOS||isStandalone());
+let swReg=null;
+function b64uToU8(x){x=x.replace(/-/g,"+").replace(/_/g,"/");const r=atob(x+"=".repeat((4-x.length%4)%4));return Uint8Array.from(r,c=>c.charCodeAt(0))}
+async function initPush(){
+  if(!("serviceWorker" in navigator))return;
+  try{
+    swReg=await navigator.serviceWorker.register("sw.js");
+    const sub=await swReg.pushManager?.getSubscription();
+    state.pushOn=!!sub&&Notification.permission==="granted";
+    if(sub&&state.pushOn)await savePushSub(sub);
+  }catch(e){}
+}
+async function savePushSub(sub){
+  const j=sub.toJSON();
+  await sb.from("push_subscriptions").upsert({user_id:state.user,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth},{onConflict:"endpoint"});
+}
+async function enablePush(){
+  if(isIOS&&!isStandalone()){toast("iPhoneでは、ホーム画面に追加したアプリから通知をオンにしてください");return}
+  if(!pushSupported()){toast("この端末・ブラウザでは通知を使えません");return}
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=="granted"){toast("通知が許可されませんでした。端末の設定で、このアプリの通知を許可してください");return}
+    swReg=swReg||await navigator.serviceWorker.register("sw.js");await navigator.serviceWorker.ready;
+    const sub=await swReg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uToU8(window.VAPID_PUBLIC_KEY)});
+    await savePushSub(sub);state.pushOn=true;toast("通知をオンにしました");syncBadge();render();
+  }catch(e){toast("通知をオンにできませんでした："+errMsg(e))}
+}
+async function disablePush(){
+  try{const sub=await swReg?.pushManager.getSubscription();
+    if(sub){await sb.from("push_subscriptions").delete().eq("endpoint",sub.endpoint);await sub.unsubscribe()}}catch(e){}
+  state.pushOn=false;
+}
+/* ホーム画面のアイコンに未読の数を表示する（対応している端末のみ） */
+function syncBadge(){
+  if(!state.user||!("setAppBadge" in navigator))return;
+  const n=unread();(n?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(()=>{});
+}
+function pushPanel(){
+  if(state.pushOn)return `<p style="margin:0 0 10px">この端末で、チャットの通知を受け取っています。</p><button class="btn" style="width:100%" data-act="pushOff">通知をオフにする</button>`;
+  if(isIOS&&!isStandalone())return `<p style="margin:0">iPhoneで通知を受け取るには、先にこのアプリを<b>ホーム画面に追加</b>してください。</p>
+    <ol class="muted" style="margin:8px 0 0;padding-left:20px"><li>Safariの画面下の共有ボタン（四角から上向きの矢印）を押す</li><li>「ホーム画面に追加」を押す</li><li>ホーム画面のアイコンからアプリを開き、ここで「通知をオンにする」を押す</li></ol>`;
+  if(!pushSupported())return `<p class="muted" style="margin:0">この端末・ブラウザでは通知を使えません。</p>`;
+  return `<p style="margin:0 0 10px">新しいメッセージが届くと、スマホに通知が届き、ホーム画面のアイコンに未読の数が表示されます。</p><button class="btn primary" data-act="pushOn">通知をオンにする</button>`;
+}
 function vChat(){
   let last="",html="";
   state.chat.forEach(m=>{const d=new Date(m.at);
@@ -544,7 +597,9 @@ function vChat(){
     html+=`<div class="msg ${me?"me":""}">${me?"":`<span class="av" aria-hidden="true">${esc(nameOf(m.user)[0])}</span>`}<div class="col">${me?"":`<div class="nm">${esc(nameOf(m.user))}</div>`}
       <div class="line">${m.kind==="photo"?(img?`<img class="chat-img" src="${esc(img)}" alt="送られた写真">`:`<div class="bubble">（写真）</div>`):`<div class="bubble">${esc(m.text)}</div>`}<span class="time">${hm(d)}</span></div></div></div>`;
   });
-  return `<section class="sec chat-sec"><h2>釣り仲間（${state.profiles.length}人）</h2><div class="chat">${html||`<div class="empty">最初のメッセージを送ってみましょう</div>`}</div></section>
+  let hide=false;try{hide=localStorage.getItem("tsuri-push-hint")==="off"}catch(e){}
+  const hint=!state.pushOn&&pushCanEnable()&&!hide?`<div class="card push-hint"><div>新しいメッセージを<b>通知</b>で受け取れます</div><div class="push-hint-btns"><button class="btn primary" data-act="pushOn">通知をオンにする</button><button class="link" style="color:var(--sub)" data-act="pushHintOff">今はしない</button></div></div>`:"";
+  return `<section class="sec chat-sec"><h2>釣り仲間（${state.profiles.length}人）</h2>${hint}<div class="chat">${html||`<div class="empty">最初のメッセージを送ってみましょう</div>`}</div></section>
   <div class="chatbar"><div class="chatbar-in"><label class="icon-btn cam-btn" for="chat-photo" aria-label="写真を送る">${CAM}</label><input id="chat-photo" type="file" accept="image/*" hidden>
   <textarea id="chat-text" rows="1" placeholder="メッセージを入力" aria-label="メッセージ">${esc(state.chatDraft)}</textarea>
   <button class="send" data-act="send">送信</button></div></div>`;
@@ -582,12 +637,14 @@ function render(){
   if(state.view==="chat")markRead();
   const v={home:vHome,chat:vChat,post:vPost,log:vCal,rank:vRank,rev:vRank,cal:vCal,me:vMe}[state.view]||vHome;
   root.innerHTML=`<div class="app">${header()}${v()}</div>${nav()}`;
+  syncBadge();
   if(state.view==="cal"&&state.logDraft)updateLogCalc();
   if(state.view==="chat"){const bar=root.querySelector(".chatbar"),nv=root.querySelector(".nav");bar.style.bottom=nv.offsetHeight+"px";
     grow(document.getElementById("chat-text"));requestAnimationFrame(()=>window.scrollTo(0,document.documentElement.scrollHeight))}
 }
 /* 入力中の画面をこわさずに、新しいデータを反映する */
 function refresh(){
+  syncBadge();
   if(!state.user||state.booting||state.me?.must_change_password)return;
   if(state.view==="post"||state.view==="me"||(state.view==="cal"&&state.logDraft)){const n=document.querySelector(".nav");if(n)n.outerHTML=nav();return}
   const ae=document.activeElement;const keep=ae&&ae.id==="chat-text"?[ae.selectionStart,ae.selectionEnd]:null;
@@ -615,7 +672,9 @@ async function boot(){
     subscribe();
     state.draft=newDraft();
   }catch(e){toast(errMsg(e))}
-  state.booting=false;render();
+  state.booting=false;
+  if(state.user)await initPush();
+  render();
 }
 async function loadLogs(){
   const{data,error}=await sb.from("fishing_logs").select("*").order("trip_date",{ascending:false}).order("created_at",{ascending:false});
@@ -650,6 +709,7 @@ async function loadChat(){
 }
 let readTimer;
 function markRead(){
+  swReg?.getNotifications?.({tag:"chat"}).then(ns=>ns.forEach(n=>n.close())).catch(()=>{});
   const last=state.chat.length?state.chat[state.chat.length-1].at:"";const now=new Date().toISOString();
   const r=last>now?last:now;if(state.chatRead>=r)return;state.chatRead=r;
   clearTimeout(readTimer);readTimer=setTimeout(()=>{sb.from("chat_reads").upsert({user_id:state.user,last_read_at:state.chatRead}).then(()=>{})},800);
@@ -806,7 +866,7 @@ document.addEventListener("click",async e=>{
   const dy=e.target.closest("[data-day]");if(dy){state.calSel=dy.dataset.day;render();return}
   const a=e.target.closest("[data-act]");if(!a)return;const act=a.dataset.act;
   if(act==="login"){login();return}
-  if(act==="logout"){await sb.auth.signOut();sb.removeAllChannels();state.user=null;state.me=null;state.draft=null;state.posts=[];state.chat=[];state.logs=[];state.settings={};state.logDraft=null;render();return}
+  if(act==="logout"){await disablePush();if("clearAppBadge" in navigator)navigator.clearAppBadge().catch(()=>{});await sb.auth.signOut();sb.removeAllChannels();state.user=null;state.me=null;state.draft=null;state.posts=[];state.chat=[];state.logs=[];state.settings={};state.logDraft=null;render();return}
   if(act==="revPrev"||act==="revNext"){const d=new Date(state.rev.y,state.rev.m+(act==="revNext"?1:-1),1);state.rev={y:d.getFullYear(),m:d.getMonth()};render();return}
   if(act==="calPrev"||act==="calNext"){const d=new Date(state.cal.y,state.cal.m+(act==="calNext"?1:-1),1);state.cal={y:d.getFullYear(),m:d.getMonth()};state.calSel=null;render();return}
   if(act==="inc"||act==="dec"){const inp=document.getElementById(a.dataset.t);inp.value=Math.max(Number(inp.min)||0,(parseInt(inp.value)||0)+(act==="inc"?1:-1));const fe=document.getElementById("formErr");if(fe)fe.textContent="";if(state.logDraft)updateLogCalc();return}
@@ -815,6 +875,9 @@ document.addEventListener("click",async e=>{
   if(act==="submit"){if(!state.busy)submitPost();return}
   if(act==="delPost"){deletePost(a.dataset.id);return}
   if(act==="send"){sendChat();return}
+  if(act==="pushOn"){enablePush();return}
+  if(act==="pushOff"){await disablePush();toast("通知をオフにしました");render();return}
+  if(act==="pushHintOff"){try{localStorage.setItem("tsuri-push-hint","off")}catch(e){}render();return}
   if(act==="ai"){if(!state.draft.aiBusy)runAI();return}
   if(act==="newLog"){state.logDraft=newLogDraft(a.dataset.date);render();window.scrollTo(0,0);return}
   if(act==="editLog"){const l=state.logs.find(x=>x.id===a.dataset.id);if(!l)return;
@@ -881,6 +944,9 @@ document.addEventListener("visibilitychange",()=>{
   if(!window.supabase||!window.SUPABASE_URL||/ここに/.test(window.SUPABASE_URL+window.SUPABASE_ANON_KEY)){render();return}
   sb=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);
   const{data:{session}}=await sb.auth.getSession();
+  const qv=new URLSearchParams(location.search).get("view");
+  if(qv==="chat"){state.view="chat";history.replaceState(null,"",location.pathname)}
+  if("serviceWorker" in navigator)navigator.serviceWorker.addEventListener("message",e=>{if(e.data?.type==="openChat"&&state.user){state.view="chat";render()}});
   if(session){state.user=session.user.id;await boot()}else render();
 })();
 </script>

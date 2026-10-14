@@ -8,3 +8,6 @@
 // =========================================================
 window.SUPABASE_URL = "https://eiirhhjitxpewvhxuwuc.supabase.co";
 window.SUPABASE_ANON_KEY = "sb_publishable_WvXHQdGT00hYsgGNGHBO4g_TEojXyWK";
+
+// チャットのプッシュ通知用の公開鍵（公開されても問題ない種類の鍵です）
+window.VAPID_PUBLIC_KEY = "BC6SxmMfNHsKbveagx4Tq-v0vw0ATXGlSbKCzH4O8XFzgCAH8wNb42mmTCoeZCVUh-CLZthQwgkZXUb4bqTDlmc";
