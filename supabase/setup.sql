@@ -228,3 +228,51 @@ language sql security definer set search_path = public as $$
 $$;
 revoke execute on function public.password_changed() from public, anon;
 grant execute on function public.password_changed() to authenticated;
+
+-- ---------- 釣り日記（参加者・徴収費用・ガソリン費用） ----------
+create table if not exists public.fishing_logs (
+  id uuid primary key default gen_random_uuid(),
+  trip_date date not null,
+  spot_name text,
+  participants uuid[] not null default '{}',                      -- 参加したメンバー
+  guest_count int not null default 0 check (guest_count >= 0),     -- メンバー以外の参加人数
+  fee_per_person int not null default 0 check (fee_per_person >= 0), -- 1人あたりの徴収額（円）
+  gas_cost int not null default 0 check (gas_cost >= 0),           -- ガソリン費用（円）
+  memo text,
+  created_by uuid not null references public.profiles(id) default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists fishing_logs_date_idx on public.fishing_logs (trip_date desc);
+
+-- アプリ全体の設定（返済の総額など）
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+grant select, insert, update, delete on public.fishing_logs, public.app_settings to authenticated;
+revoke all on public.fishing_logs, public.app_settings from anon;
+alter table public.fishing_logs enable row level security;
+alter table public.app_settings enable row level security;
+
+-- 日記：全員見られる。書いた人と管理者だけが直したり消したりできる
+drop policy if exists "logs_select" on public.fishing_logs;
+create policy "logs_select" on public.fishing_logs for select to authenticated using (public.is_member());
+drop policy if exists "logs_insert" on public.fishing_logs;
+create policy "logs_insert" on public.fishing_logs for insert to authenticated
+  with check (created_by = auth.uid() and public.is_member());
+drop policy if exists "logs_update" on public.fishing_logs;
+create policy "logs_update" on public.fishing_logs for update to authenticated
+  using (created_by = auth.uid() or public.is_admin());
+drop policy if exists "logs_delete" on public.fishing_logs;
+create policy "logs_delete" on public.fishing_logs for delete to authenticated
+  using (created_by = auth.uid() or public.is_admin());
+
+-- 設定：全員見られる。変更は管理者だけ
+drop policy if exists "settings_select" on public.app_settings;
+create policy "settings_select" on public.app_settings for select to authenticated using (public.is_member());
+drop policy if exists "settings_admin" on public.app_settings;
+create policy "settings_admin" on public.app_settings for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
