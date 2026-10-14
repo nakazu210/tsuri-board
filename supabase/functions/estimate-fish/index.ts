@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   try {
     const key = Deno.env.get("GEMINI_API_KEY");
     if (!key) return json({ error: "AIの設定がまだです（管理者に連絡してください）" }, 500);
-    const model = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+    const model = Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest";
 
     // ログイン中のメンバーだけが使える
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
